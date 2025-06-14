@@ -1,0 +1,85 @@
+# Single Docker image for MapExplorer (Frontend + Backend)
+
+# Stage 1: Build the frontend
+FROM node:18-alpine as frontend-build
+
+WORKDIR /app/frontend
+
+# Copy frontend package files
+COPY package*.json ./
+COPY vite.config.ts ./
+COPY tailwind.config.js ./
+COPY postcss.config.js ./
+COPY index.html ./
+
+# Install frontend dependencies
+RUN npm install
+
+# Copy frontend source code
+COPY src/ ./src/
+COPY public/ ./public/
+
+# Build the frontend
+RUN npm run build
+
+# Stage 2: Production image with both frontend and backend
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install required packages
+RUN apk add --no-cache curl nginx
+
+# Copy backend files
+COPY backend/package*.json ./backend/
+COPY backend/.env ./backend/
+COPY backend/database/ ./backend/database/
+
+# Install backend dependencies
+WORKDIR /app/backend
+RUN npm install --only=production
+
+# Go back to app directory
+WORKDIR /app
+
+# Copy built frontend from previous stage
+COPY --from=frontend-build /app/frontend/dist ./frontend/dist
+
+# Create nginx configuration
+COPY nginx-single.conf /etc/nginx/nginx.conf
+
+# Copy startup script
+COPY start-single.sh ./start.sh
+RUN chmod +x ./start.sh
+
+# Create nginx run directory and set permissions
+RUN mkdir -p /run/nginx && \
+    mkdir -p /var/log/nginx && \
+    mkdir -p /var/lib/nginx/tmp && \
+    mkdir -p /var/cache/nginx
+
+# Create a non-root user
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -S appuser -u 1001 -G appgroup
+
+# Change ownership of necessary directories
+RUN chown -R appuser:appgroup /app && \
+    chown -R appuser:appgroup /var/log/nginx && \
+    chown -R appuser:appgroup /var/lib/nginx && \
+    chown -R appuser:appgroup /var/cache/nginx && \
+    chown -R appuser:appgroup /run/nginx && \
+    chown -R appuser:appgroup /etc/nginx
+
+# Switch to non-root user
+USER appuser
+
+# Expose port 3010 (nginx serves both frontend and proxies backend)
+EXPOSE 3010
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD curl -f http://localhost:3010/health || exit 1
+
+# Start the application
+CMD ["./start.sh"]
+CMD ["/app/start.sh"]
