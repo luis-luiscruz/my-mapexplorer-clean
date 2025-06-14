@@ -1,0 +1,56 @@
+/* Advanced popup effects for a more modern look */
+.custom-map-popup {
+  --popup-blur: 10px;
+  --popup-bg-opacity: 0.85;
+}
+
+/* Glassmorphism effect for popups */
+.custom-map-popup-content {
+  backdrop-filter: blur(var(--popup-blur));
+  -webkit-backdrop-filter: blur(var(--popup-blur));
+  background: linear-gradient(135deg, 
+                             hsla(var(--b1-h), var(--b1-s), var(--b1-l), var(--popup-bg-opacity)), 
+                             hsla(var(--b2-h), var(--b2-s), var(--b2-l), calc(var(--popup-bg-opacity) - 0.05)));
+  border: 1px solid hsla(var(--p-h), var(--p-s), var(--p-l), 0.3);
+}
+
+/* Improved shadow effects */
+.custom-map-popup-content {
+  box-shadow: 
+    0 10px 15px -3px rgba(0, 0, 0, 0.1),
+    0 4px 6px -2px rgba(0, 0, 0, 0.05),
+    inset 0 0 0 1px hsla(var(--p-h), var(--p-s), var(--p-l), 0.05);
+}
+
+/* Subtle border glow on hover */
+.custom-map-popup:hover .custom-map-popup-content {
+  box-shadow: 
+    0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 10px 10px -5px rgba(0, 0, 0, 0.04),
+    0 0 0 1px hsla(var(--p-h), var(--p-s), var(--p-l), 0.3),
+    0 0 15px hsla(var(--p-h), var(--p-s), var(--p-l), 0.15);
+}
+
+/* Enhanced header styling */
+.custom-map-popup-content .flex:first-child {
+  background: linear-gradient(to right, 
+                             hsla(var(--p-h), var(--p-s), var(--p-l), 0.15), 
+                             hsla(var(--p-h), var(--p-s), var(--p-l), 0.05));
+}
+
+/* Add pulse effect to the potencia badge */
+.badge.badge-primary {
+  animation: subtle-pulse 2s infinite ease-in-out;
+}
+
+@keyframes subtle-pulse {
+  0% { 
+    box-shadow: 0 0 0 0 hsla(var(--p-h), var(--p-s), var(--p-l), 0.4); 
+  }
+  70% { 
+    box-shadow: 0 0 0 6px hsla(var(--p-h), var(--p-s), var(--p-l), 0); 
+  }
+  100% { 
+    box-shadow: 0 0 0 0 hsla(var(--p-h), var(--p-s), var(--p-l), 0); 
+  }
+}

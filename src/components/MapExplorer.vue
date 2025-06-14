@@ -184,10 +184,9 @@
                 </div>
 
                 <!-- Lista sempre visível -->
-                <div v-if="filteredChargers.length > 0" class="max-h-80 overflow-y-auto border border-base-200 rounded-lg bg-base-100/50">
-                  <div class="space-y-1 p-2">
-                    <div v-for="charger in filteredChargers" 
-                         :key="charger.Posto_ID"
+                <div v-if="filteredChargers.length > 0" class="max-h-80 overflow-y-auto border border-base-200 rounded-lg bg-base-100/50">                  <div class="space-y-1 p-2">
+                    <div v-for="(charger, index) in filteredChargers" 
+                         :key="`${charger.Posto_ID || 'unknown'}-${charger.Latitude}-${charger.Longitude}-${index}`"
                          @click="flyToCharger(charger)"
                          class="flex items-center space-x-2 p-2 hover:bg-base-200 rounded cursor-pointer transition-all bg-base-100 border border-base-200 hover:border-primary shadow-sm hover:shadow-md">
                       <div class="flex-shrink-0">
