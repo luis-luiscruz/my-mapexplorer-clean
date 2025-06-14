@@ -193,7 +193,8 @@ app.get('/api/chargers/bounds', async (req, res) => {
       west: parseFloat(west)
     };
       console.log(`🗺️ Fetching ALL unique chargers (DISTINCT Posto_ID) in bounds:`, bounds);
-      const [rows] = await pool.execute(`
+    
+    const [rows] = await pool.execute(`
       SELECT DISTINCT 
         Posto_ID,
         Latitude, 
@@ -209,9 +210,7 @@ app.get('/api/chargers/bounds', async (req, res) => {
         POTENCIA_TOMADA,
         TIPO_POSTO,
         TIPO_TOMADA,
-        FORMATO_TOMADA,
-        Link_MIIO,
-        Link_Gmap
+        FORMATO_TOMADA
       FROM ${tableName}
       WHERE Latitude BETWEEN ? AND ?
       AND Longitude BETWEEN ? AND ?

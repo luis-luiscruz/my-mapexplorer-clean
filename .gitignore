@@ -47,10 +47,6 @@ pids
 coverage/
 *.lcov
 
-# Docker exports (large files)
-docker-exports/*.tar
-docker-exports/*.tar.gz
-
 # nyc test coverage
 .nyc_output
 
