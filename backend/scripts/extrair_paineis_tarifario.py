@@ -6,11 +6,14 @@ SCRIPT EXCLUSIVO: Extrair blocos CCS dos painéis após clicar em "Tarifário Re
 
 Este script:
 1. Navega até mobie.pt
-2. Busca o posto brr-00137
+2. Busca o posto especificado como argumento (ou brr-00137 por padrão)
 3. Clica em "Tarifário Regular"
 4. Extrai todos os blocos CCS encontrados nos painéis
 5. Para cada painel, encontra "CABLE" seguido por "CCS" e extrai o texto de "CCS" até o próximo "CABLE" (não incluído)
 6. Retorna JSON com posto ID e todos os blocos CCS encontrados
+
+Uso: python extrair_paineis_tarifario.py [POSTO_ID]
+Exemplo: python extrair_paineis_tarifario.py brr-00133
 """
 
 import sys
@@ -31,7 +34,7 @@ try:
     from webdriver_manager.chrome import ChromeDriverManager
     SELENIUM_AVAILABLE = True
 except ImportError as e:
-    print(f"⚠️ Selenium não disponível: {e}")
+    print(f"[WARNING] Selenium não disponível: {e}")
     sys.exit(1)
 
 
@@ -39,7 +42,94 @@ def extrair_paineis_tarifario(posto_id):
     """
     Extrair texto de painéis após clicar em "Tarifário Regular"
     """
-    print(f"🚀 Iniciando extração de painéis para posto {posto_id}")
+    print(f"[INFO] Iniciando extração de painéis para posto {posto_id}")
+    
+    def verificar_e_desmarcar_checkbox(driver, nome_checkbox="availableStations", max_tentativas=5):
+        """
+        Função auxiliar para verificar e desmarcar checkbox de forma robusta
+        Tenta múltiplas vezes até garantir que a checkbox está desmarcada
+        """
+        print(f"[DEBUG] Verificando estado da checkbox '{nome_checkbox}' (máx {max_tentativas} tentativas)...")
+        
+        for tentativa in range(1, max_tentativas + 1):
+            try:
+                print(f"[DEBUG] Tentativa {tentativa}/{max_tentativas}")
+                
+                # Aguardar a checkbox aparecer
+                checkbox = WebDriverWait(driver, 5).until(
+                    EC.presence_of_element_located((By.ID, nome_checkbox))
+                )
+                
+                # Verificar se a checkbox está marcada
+                if checkbox.is_selected():
+                    print(f"[INFO] Checkbox '{nome_checkbox}' está marcada, desmarcando (tentativa {tentativa})...")
+                    
+                    # Tentar clique normal primeiro
+                    try:
+                        checkbox.click()
+                        time.sleep(0.5)
+                        print(f"[DEBUG] Clique executado na tentativa {tentativa}")
+                    except Exception as e:
+                        print(f"[WARNING] Clique normal falhou na tentativa {tentativa}: {e}")
+                        # Tentar JavaScript como backup imediato
+                        driver.execute_script(f"document.getElementById('{nome_checkbox}').click();")
+                        time.sleep(0.5)
+                        print(f"[DEBUG] Clique via JavaScript executado na tentativa {tentativa}")
+                    
+                    # Aguardar e verificar novamente
+                    time.sleep(0.3)
+                    
+                    # Re-encontrar o elemento após o clique
+                    checkbox = driver.find_element(By.ID, nome_checkbox)
+                    
+                    if not checkbox.is_selected():
+                        print(f"[SUCCESS] Checkbox '{nome_checkbox}' desmarcada com sucesso na tentativa {tentativa}")
+                        return True
+                    else:
+                        print(f"[WARNING] Checkbox '{nome_checkbox}' ainda está marcada após tentativa {tentativa}")
+                        
+                        # Tentar forçar desmarcação via JavaScript
+                        driver.execute_script(f"document.getElementById('{nome_checkbox}').checked = false;")
+                        time.sleep(0.3)
+                        
+                        # Verificar novamente
+                        checkbox = driver.find_element(By.ID, nome_checkbox)
+                        if not checkbox.is_selected():
+                            print(f"[SUCCESS] Checkbox '{nome_checkbox}' desmarcada via JavaScript na tentativa {tentativa}")
+                            return True
+                        else:
+                            print(f"[ERROR] JavaScript também falhou na tentativa {tentativa}")
+                            if tentativa < max_tentativas:
+                                print(f"[INFO] Tentando novamente... ({tentativa + 1}/{max_tentativas})")
+                                time.sleep(1)  # Aguardar mais tempo antes da próxima tentativa
+                                continue
+                else:
+                    print(f"[SUCCESS] Checkbox '{nome_checkbox}' já está desmarcada na tentativa {tentativa}")
+                    return True
+                    
+            except Exception as e:
+                print(f"[ERROR] Erro na tentativa {tentativa} ao verificar/desmarcar checkbox '{nome_checkbox}': {e}")
+                if tentativa < max_tentativas:
+                    print(f"[INFO] Tentando novamente após erro... ({tentativa + 1}/{max_tentativas})")
+                    time.sleep(1)
+                    continue
+                else:
+                    # Última tentativa com JavaScript como fallback
+                    try:
+                        driver.execute_script(f"document.getElementById('{nome_checkbox}').checked = false;")
+                        print(f"[INFO] Tentativa final via JavaScript para '{nome_checkbox}'")
+                        time.sleep(0.5)
+                        
+                        # Verificar se funcionou
+                        checkbox = driver.find_element(By.ID, nome_checkbox)
+                        if not checkbox.is_selected():
+                            print(f"[SUCCESS] Checkbox '{nome_checkbox}' desmarcada na tentativa final via JavaScript")
+                            return True
+                    except:
+                        pass
+        
+        print(f"[ERROR] Falha ao desmarcar checkbox '{nome_checkbox}' após {max_tentativas} tentativas")
+        return False
       # Configurar Chrome com otimizações de velocidade
     options = Options()
     options.add_argument('--no-sandbox')
@@ -55,11 +145,11 @@ def extrair_paineis_tarifario(posto_id):
     
     try:
         # Inicializar driver
-        print("🌐 Inicializando Chrome...")
+        print("[INFO] Inicializando Chrome...")
         service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=options)
           # Navegar para mobie.pt
-        print("🌐 Navegando para mobie.pt...")
+        print("[INFO] Navegando para mobie.pt...")
         driver.get("https://www.mobie.pt")
         
         # Aguardar página carregar de forma inteligente
@@ -68,7 +158,7 @@ def extrair_paineis_tarifario(posto_id):
         )
         
         # 1. Fechar modais (cookies, popups)
-        print("🔍 Verificando e fechando modais...")
+        print("[DEBUG] Verificando e fechando modais...")
         try:
             # Tentar diferentes seletores para fechar modais
             seletores_modal = [
@@ -86,15 +176,15 @@ def extrair_paineis_tarifario(posto_id):
                     for elem in elementos:
                         if elem.is_displayed():
                             driver.execute_script("arguments[0].click();", elem)
-                            print(f"✅ Modal fechado com {selector}")
+                            print(f"[SUCCESS] Modal fechado com {selector}")
                             time.sleep(0.8)  # Reduzido de 1.5 para 0.8
                 except Exception:
                     pass
         except Exception as e:
-            print(f"ℹ️ Exceção ao fechar modal: {e}")
+            print(f"[INFO] Exceção ao fechar modal: {e}")
         
         # 2. Clicar em "Encontrar posto"
-        print("🔍 Clicando em 'Encontrar posto'...")
+        print("[DEBUG] Clicando em 'Encontrar posto'...")
         try:
             # Tentar diferentes métodos para clicar
             metodos = [
@@ -111,7 +201,7 @@ def extrair_paineis_tarifario(posto_id):
             for i, metodo in enumerate(metodos, 1):
                 try:
                     metodo()
-                    print(f"✅ Clicado em 'Encontrar posto' (método {i})")
+                    print(f"[SUCCESS] Clicado em 'Encontrar posto' (método {i})")
                     # Aguardar campo de pesquisa aparecer ao invés de tempo fixo
                     WebDriverWait(driver, 10).until(
                         EC.presence_of_element_located((By.ID, "searchBox"))
@@ -123,40 +213,48 @@ def extrair_paineis_tarifario(posto_id):
                 raise Exception("Não foi possível clicar em 'Encontrar posto'")
                 
         except Exception as e:
-            print(f"❌ Erro ao clicar em 'Encontrar posto': {e}")
+            print(f"[ERROR] Erro ao clicar em 'Encontrar posto': {e}")
             driver.quit()
             return {"error": str(e)}
         
         # 3. Pesquisar posto
-        print(f"🔍 Pesquisando posto {posto_id}...")
+        print(f"[DEBUG] Pesquisando posto {posto_id}...")
         try:
             # Esperar campo de pesquisa
             campo_pesquisa = WebDriverWait(driver, 15).until(
                 EC.presence_of_element_located((By.ID, "searchBox"))
-            )
-              # Desmarcar checkbox se estiver marcado
-            try:
-                checkbox = driver.find_element(By.ID, "availableStations")
-                if checkbox.is_selected():
-                    checkbox.click()
-                    print("✅ Desmarcado checkbox 'availableStations'")
-                    time.sleep(0.5)  # Reduzido de 1 para 0.5
-            except:
-                print("ℹ️ Checkbox não encontrado ou não precisa ser desmarcado")
+            )              # VERIFICAÇÃO OBRIGATÓRIA: Desmarcar checkbox ANTES de pesquisar
+            print("[CRITICAL] Executando verificação obrigatória da checkbox...")
+            if not verificar_e_desmarcar_checkbox(driver, "availableStations", max_tentativas=3):
+                error_msg = "ERRO CRÍTICO: Não foi possível desmarcar a checkbox 'availableStations'. Pesquisa pode retornar resultados incorretos."
+                print(f"[ERROR] {error_msg}")
+                driver.quit()
+                return {"error": error_msg, "status": "checkbox_error"}
             
-            # Limpar, pesquisar e submeter
+            # Aguardar um momento para garantir que mudanças sejam aplicadas
+            time.sleep(0.5)
+            
+            # VERIFICAÇÃO FINAL CRÍTICA: Confirmar que checkbox está desmarcada antes de pesquisar
+            print("[CRITICAL] Verificação final OBRIGATÓRIA da checkbox antes da pesquisa...")
+            if not verificar_e_desmarcar_checkbox(driver, "availableStations", max_tentativas=3):
+                error_msg = "ERRO CRÍTICO: Verificação final da checkbox falhou. Abortando para evitar resultados incorretos."
+                print(f"[ERROR] {error_msg}")
+                driver.quit()
+                return {"error": error_msg, "status": "final_checkbox_verification_failed"}
+            
+            print("[SUCCESS] Checkbox confirmadamente desmarcada - prosseguindo com a pesquisa")            # Limpar, pesquisar e submeter
             campo_pesquisa.clear()
             time.sleep(0.3)  # Reduzido de 0.5 para 0.3
             campo_pesquisa.send_keys(posto_id)
             time.sleep(0.3)  # Reduzido de 0.5 para 0.3
             campo_pesquisa.send_keys(Keys.RETURN)
-            print(f"✅ Pesquisa executada para: {posto_id}")
+            print(f"[SUCCESS] Pesquisa executada para: {posto_id}")
             time.sleep(5)  # Reduzido de 8 para 5
             
             # Verificar se encontrou resultados
             try:
                 resultado_texto = driver.find_element(By.CSS_SELECTOR, ".search-results-info").text
-                print(f"ℹ️ Resultado da pesquisa: {resultado_texto}")
+                print(f"[INFO] Resultado da pesquisa: {resultado_texto}")
                 
                 if "0 posto" in resultado_texto:
                     raise Exception("Nenhum posto encontrado na pesquisa")
@@ -164,11 +262,11 @@ def extrair_paineis_tarifario(posto_id):
                 pass
                 
         except Exception as e:
-            print(f"❌ Erro na pesquisa: {e}")
+            print(f"[ERROR] Erro na pesquisa: {e}")
             driver.quit()
             return {"error": str(e)}
           # 4. Verificar se o posto apareceu nos resultados e depois clicar
-        print("🔍 Verificando se o posto apareceu nos resultados...")
+        print("[DEBUG] Verificando se o posto apareceu nos resultados...")
         try:
             # Primeiro verificar se o ID do posto está presente na página
             try:
@@ -176,15 +274,15 @@ def extrair_paineis_tarifario(posto_id):
                 WebDriverWait(driver, 10).until(
                     lambda d: posto_id.lower() in d.page_source.lower()
                 )
-                print(f"✅ Posto {posto_id} encontrado nos resultados")
+                print(f"[SUCCESS] Posto {posto_id} encontrado nos resultados")
             except:
-                print(f"❌ Posto {posto_id} não encontrado nos resultados da pesquisa")
+                print(f"[ERROR] Posto {posto_id} não encontrado nos resultados da pesquisa")
                 driver.quit()
                 return {"error": f"Posto {posto_id} não apareceu nos resultados"}
               # Aguardar um pouco mais para garantir que a página carregou completamente
             time.sleep(0.5)  # Reduzido de 3 para 2
             
-            print("🔍 Clicando no resultado do posto...")
+            print("[DEBUG] Clicando no resultado do posto...")
             
             # Tentar diferentes métodos para clicar no posto
             metodos_click_posto = [
@@ -215,7 +313,7 @@ def extrair_paineis_tarifario(posto_id):
                         driver.execute_script("arguments[0].click();", elemento)
                     else:  # Para método 3 (JavaScript)
                         metodo()
-                    print(f"✅ Clicado no resultado do posto (método {i})")
+                    print(f"[SUCCESS] Clicado no resultado do posto (método {i})")
                     time.sleep(2)  # Reduzido de 5 para 3
                     break
                 except Exception:
@@ -224,12 +322,12 @@ def extrair_paineis_tarifario(posto_id):
                 raise Exception("Não foi possível clicar no resultado do posto")
                 
         except Exception as e:
-            print(f"❌ Erro ao clicar no posto: {e}")
+            print(f"[ERROR] Erro ao clicar no posto: {e}")
             driver.quit()
             return {"error": str(e)}
         
         # 5. Clicar em "Tarifário Regular"
-        print("🔍 Clicando em 'Tarifário Regular'...")
+        print("[DEBUG] Clicando em 'Tarifário Regular'...")
         try:
             # Aguardar para página carregar (tempo otimizado)
             time.sleep(1)  # Reduzido de 3 para 2
@@ -262,21 +360,21 @@ def extrair_paineis_tarifario(posto_id):
                         result = metodo()
                         if not result:
                             continue
-                    print(f"✅ Clicado em 'Tarifário Regular' (método {i})")
+                    print(f"[SUCCESS] Clicado em 'Tarifário Regular' (método {i})")
                     time.sleep(2)  # Reduzido de 5 para 3
                     break
                 except Exception as e:
-                    print(f"ℹ️ Método {i} falhou: {e}")
+                    print(f"[INFO] Método {i} falhou: {e}")
                     continue
             else:
-                print("⚠️ Não foi possível clicar em 'Tarifário Regular', mas tentando continuar...")
+                print("[ERROR] Não foi possível clicar em 'Tarifário Regular', mas tentando continuar...")
                 
-        except Exception as e:            print(f"⚠️ Erro ao clicar em Tarifário Regular: {e}")
+        except Exception as e:            print(f"[ERROR] Erro ao clicar em Tarifário Regular: {e}")
             # Continuar mesmo se não conseguir clicar no tarifário
         
         # 6. EXTRAIR TEXTO DOS PAINÉIS E BLOCOS CCS
         print("\n" + "="*80)
-        print("🔍 EXTRAINDO BLOCOS CCS DOS PAINÉIS")
+        print("[DEBUG] EXTRAINDO BLOCOS CCS DOS PAINÉIS")
         print("="*80)
         
         # Lista para armazenar resultados
@@ -306,7 +404,7 @@ def extrair_paineis_tarifario(posto_id):
             pattern = r'CABLE\s*CCS'
             matches = list(re.finditer(pattern, texto_upper))
             
-            print(f"🔍 Encontrados {len(matches)} padrões 'CABLE CCS' no texto")
+            print(f"[DEBUG] Encontrados {len(matches)} padrões 'CABLE CCS' no texto")
             
             for i, match in enumerate(matches):
                 # Posição onde "CCS" começa (após "CABLE ")
@@ -408,7 +506,7 @@ def extrair_paineis_tarifario(posto_id):
                         'elementos_classificados': elementos_classificados
                     })
                     
-                    print(f"\n📝 BLOCO CCS {i + 1}:")
+                    print(f"\n[DEBUG] BLOCO CCS {i + 1}:")
                     print(f"   Posição: {inicio_ccs}-{fim_bloco}")
                     print(f"   Texto original: {bloco_texto}")
                     print(f"   Texto formatado:")
@@ -426,7 +524,7 @@ def extrair_paineis_tarifario(posto_id):
         # Tentar cada seletor
         for seletor in seletores_paineis:
             try:
-                print(f"\n🔍 Tentando seletor: {seletor}")
+                print(f"\n[DEBUG] Tentando seletor: {seletor}")
                 paineis = driver.find_elements(By.CSS_SELECTOR, seletor)
                 print(f"   Encontrados: {len(paineis)} painéis")
                 
@@ -447,7 +545,7 @@ def extrair_paineis_tarifario(posto_id):
                                     blocos_do_painel = extrair_blocos_ccs(texto_bruto)
                                     
                                     if blocos_do_painel:
-                                        print(f"✅ Encontrados {len(blocos_do_painel)} blocos CCS no painel {i}")
+                                        print(f"[SUCCESS] Encontrados {len(blocos_do_painel)} blocos CCS no painel {i}")
                                         
                                         # Adicionar cada bloco aos resultados
                                         for bloco in blocos_do_painel:
@@ -463,24 +561,24 @@ def extrair_paineis_tarifario(posto_id):
                                                 'texto_completo_painel': texto_bruto
                                             })
                                     else:
-                                        print(f"ℹ️ Nenhum bloco CCS encontrado no painel {i}")
+                                        print(f"[INFO] Nenhum bloco CCS encontrado no painel {i}")
                                     
                                     print("="*60)
                                         
                         except Exception as e:
-                            print(f"⚠️ Erro ao processar painel {i}: {e}")
+                            print(f"[ERROR] Erro ao processar painel {i}: {e}")
                 
                     # Se encontramos painéis com este seletor, não precisamos tentar os outros
                     if paineis:
                         break
                 
             except Exception as e:
-                print(f"⚠️ Erro ao usar seletor {seletor}: {e}")
+                print(f"[ERROR] Erro ao usar seletor {seletor}: {e}")
                 continue
         
         # Se não encontramos painéis, tentar método alternativo
         if not blocos_ccs:
-            print("\n🔄 Tentando método alternativo para encontrar painéis...")
+            print("\n[DEBUG] Tentando método alternativo para encontrar painéis...")
             try:
                 # Usar JavaScript para encontrar todos os elementos que podem ser painéis
                 potenciais_paineis = driver.execute_script("""
@@ -504,7 +602,7 @@ def extrair_paineis_tarifario(posto_id):
                             blocos_do_painel = extrair_blocos_ccs(texto)
                             
                             if blocos_do_painel:
-                                print(f"✅ Encontrados {len(blocos_do_painel)} blocos CCS no painel {i}")
+                                print(f"[SUCCESS] Encontrados {len(blocos_do_painel)} blocos CCS no painel {i}")
                                   # Adicionar cada bloco aos resultados
                                 for bloco in blocos_do_painel:
                                     blocos_ccs.append({
@@ -517,18 +615,18 @@ def extrair_paineis_tarifario(posto_id):
                                         'texto_completo_painel': texto
                                     })
                             else:
-                                print(f"ℹ️ Nenhum bloco CCS encontrado no painel {i}")
+                                print(f"[INFO] Nenhum bloco CCS encontrado no painel {i}")
                             
                             print("="*60)
             except Exception as e:
-                print(f"⚠️ Erro no método alternativo: {e}")
+                print(f"[ERROR] Erro no método alternativo: {e}")
         
-        print(f"\n🎯 TOTAL: {len(blocos_ccs)} blocos CCS extraídos")
+        print(f"\n[RESULT] TOTAL: {len(blocos_ccs)} blocos CCS extraídos")
         
         # 7. Fechar navegador imediatamente após extração
-        print("\n� Fechando navegador...")
+        print("\n[EMOJI] Fechando navegador...")
         driver.quit()
-        print("✅ Navegador fechado com sucesso!")
+        print("[SUCCESS] Navegador fechado com sucesso!")
         
         # Retornar resultado
         resultado = {
@@ -541,7 +639,7 @@ def extrair_paineis_tarifario(posto_id):
         return resultado
             
     except Exception as e:
-        print(f"❌ ERRO GERAL: {e}")
+        print(f"[ERROR] ERRO GERAL: {e}")
         if 'driver' in locals():
             driver.quit()
         return {
@@ -551,7 +649,12 @@ def extrair_paineis_tarifario(posto_id):
         }
 
 def main():
-    posto_id = "BRR-00137"
+    # Verificar se foi fornecido um posto_id como argumento
+    if len(sys.argv) > 1:
+        posto_id = sys.argv[1].upper()  # Converter para maiúsculas
+    else:
+        posto_id = "BRR-00137"  # ID padrão se não for fornecido
+        print("[WARNING] Nenhum posto_id fornecido, usando padrão: BRR-00137")
     
     print("=" * 60)
     print(f" EXTRAÇÃO OTIMIZADA DE BLOCOS CCS - POSTO {posto_id}")
@@ -563,13 +666,13 @@ def main():
     end_time = time.time()
     
     tempo_execucao = end_time - start_time
-    print(f"\n⏱️ TEMPO DE EXECUÇÃO: {tempo_execucao:.2f} segundos")
+    print(f"\n[TIME] TEMPO DE EXECUÇÃO: {tempo_execucao:.2f} segundos")
     
     # Adicionar tempo ao resultado
     if isinstance(resultado, dict):
         resultado["tempo_execucao_segundos"] = round(tempo_execucao, 2)
     
-    print("\n📊 RESULTADO FINAL:")
+    print("\n[RESULT] RESULTADO FINAL:")
     print(json.dumps(resultado, ensure_ascii=False, indent=2))
 
 if __name__ == "__main__":
