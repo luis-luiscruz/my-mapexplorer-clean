@@ -193,8 +193,14 @@ app.get('/api/chargers/bounds', async (req, res) => {
       south: parseFloat(south),
       east: parseFloat(east),
       west: parseFloat(west)
-    };
-      console.log(`🗺️ Fetching ALL unique chargers (DISTINCT Posto_ID) in bounds:`, bounds);
+    };    console.log(`🗺️ Fetching ALL unique chargers (DISTINCT Posto_ID) in bounds:`, bounds);
+    
+    // First, let's check what columns are available
+    const [columnInfo] = await pool.execute(`      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+      ORDER BY ORDINAL_POSITION
+    `, [process.env.DB_NAME || process.env.DB_DATABASE, tableName]);
     
     const [rows] = await pool.execute(`
       SELECT DISTINCT 
@@ -212,7 +218,9 @@ app.get('/api/chargers/bounds', async (req, res) => {
         POTENCIA_TOMADA,
         TIPO_POSTO,
         TIPO_TOMADA,
-        FORMATO_TOMADA
+        FORMATO_TOMADA,
+        Link_Gmap,
+        Link_MIIO
       FROM ${tableName}
       WHERE Latitude BETWEEN ? AND ?
       AND Longitude BETWEEN ? AND ?

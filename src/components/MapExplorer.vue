@@ -416,7 +416,10 @@
         </div>
       </div>      <!-- Map Container -->
       <div class="flex-1 relative">
-        <div ref="mapContainer" class="absolute inset-0"></div>
+        <div ref="mapContainer" class="absolute inset-0" :style="{ 
+          top: mapOffset + 'px', 
+          height: `calc(100% - ${mapOffset}px)` 
+        }"></div>
         <!-- Map Loading -->
         <div v-if="isLoading" class="absolute inset-0 bg-base-200/50 flex items-center justify-center z-10">
           <div class="loading loading-spinner loading-lg text-primary"></div>
@@ -488,7 +491,7 @@
 </style>
 
 <script lang="ts">
-import { defineComponent, ref, onMounted, onUnmounted, nextTick, computed } from 'vue';
+import { defineComponent, ref, onMounted, onUnmounted, nextTick, computed, watch } from 'vue';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
@@ -541,10 +544,10 @@ export default defineComponent({
     const currentZoom = ref(14);
     const userLocation = ref<{lat: number, lng: number} | null>(null);
     const mapCenter = ref<{lat: number, lng: number} | null>(null);
-    const currentLocationName = ref<string>('');
-      // Custom popup state
+    const currentLocationName = ref<string>('');    // Custom popup state
     const chargerPopupVisible = ref(false);
     const selectedCharger = ref<any>(null);
+    const mapOffset = ref(0); // Dynamic map offset
     
     // Weather data
     const weatherData = ref<{
@@ -1315,9 +1318,9 @@ export default defineComponent({
             if (map) {
               map.panTo([lat, lng]);
             }
-            
-            // Show custom popup with charger data
+              // Show custom popup with charger data
             selectedCharger.value = charger;
+            mapOffset.value = 50; // Lower map by 50px when popup opens
             chargerPopupVisible.value = true;
           });
           
@@ -1439,6 +1442,7 @@ export default defineComponent({
         easeLinearity: 0.1
       });      // Show the custom charger popup
       selectedCharger.value = charger;
+      mapOffset.value = 50; // Lower map by 50px when popup opens
       setTimeout(() => {
         chargerPopupVisible.value = true;
       }, 300);
@@ -1533,21 +1537,30 @@ export default defineComponent({
         chargerClusterGroup.clearLayers();
         chargerClusterGroup = null;
       }
-      
-      if (map) {
+        if (map) {
         map.remove();
       }
-    });    return {
+    });
+
+    // Watch for popup visibility changes to reset map offset
+    watch(chargerPopupVisible, (newValue) => {
+      if (!newValue) {
+        // Popup is closed, reset map offset
+        mapOffset.value = 0;
+      }
+    });
+
+    return {
       mapContainer,
       map: mapInstance, // Use reactive reference
       isLoading,
       isLoadingWeather,
       isLoadingPlaces,
       searchQuery,
-      currentZoom,
-      userLocation,
+      currentZoom,      userLocation,
       mapCenter,
-      currentLocationName,      weatherData,
+      mapOffset,
+      currentLocationName,weatherData,
       quickPlaces,
       nearbyPOIs,      chargers,
       chargersLoading,

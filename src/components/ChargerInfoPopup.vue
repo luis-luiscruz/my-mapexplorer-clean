@@ -7,52 +7,77 @@
       :map="map"
       :title="charger.desc_loja || 'Posto de Carregamento'"
     >
-      <div class="ev-station-card">
-        <!-- Header com título e ID -->
+      <div>
+        <!-- Header compacto -->
         <div class="station-header">
-          <div class="station-title">
-            <div class="charging-icon">⚡</div>
-            <h3>{{ charger.desc_loja || 'Posto EV' }}</h3>
-          </div>
-          <div class="station-id" v-if="charger.Posto_ID">
-            #{{ charger.Posto_ID }}
+          <div class="station-title-section">
+            <div class="charging-icon-modern">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M14.69 2.21L4.33 11.49c-.64.58-.28 1.65.58 1.73L13 14l-1.17 7.07c-.17.98 1.02 1.59 1.7.87l10.36-9.28c.64-.58.28-1.65-.58-1.73L15 10l1.17-7.07c.17-.98-1.02-1.59-1.7-.87-.01.01-.01.01-.02.01z"/>
+              </svg>
+            </div>
+            <div class="title-content">
+              <h3 class="station-name">{{ charger.desc_loja || 'Posto EV' }}</h3>
+              <div class="station-id-badge" v-if="charger.Posto_ID">
+                #{{ charger.Posto_ID }}
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- Informações básicas -->
-        <div class="station-info">
-          <div v-if="charger.MORADA" class="info-item">
-            <span class="info-label">📍 Localização:</span>
-            <span class="info-value">{{ charger.MORADA }}</span>
+        <!-- Morada em destaque -->
+        <div v-if="charger.MORADA" class="address-section">
+          <div class="address-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+            </svg>
           </div>
-          
+          <span class="address-text">{{ charger.MORADA }}</span>
+        </div>
+
+        <!-- Grid horizontal de informações (sem morada) -->
+        <div class="info-grid-horizontal">
           <div v-if="charger.POTENCIA_TOMADA" class="info-item">
-            <span class="info-label">⚡ Potência:</span>
+            <div class="info-icon power">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M14.69 2.21L4.33 11.49c-.64.58-.28 1.65.58 1.73L13 14l-1.17 7.07c-.17.98 1.02 1.59 1.7.87l10.36-9.28c.64-.58.28-1.65-.58-1.73L15 10l1.17-7.07c.17-.98-1.02-1.59-1.7-.87-.01.01-.01.01-.02.01z"/>
+              </svg>
+            </div>
             <span class="info-value">{{ charger.POTENCIA_TOMADA }}kW</span>
           </div>
           
           <div v-if="charger.OPERADOR" class="info-item">
-            <span class="info-label">🏢 Operador:</span>
+            <div class="info-icon operator">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10z"/>
+              </svg>
+            </div>
             <span class="info-value">{{ charger.OPERADOR }}</span>
           </div>
-        </div>        <!-- Botões de ação -->
-        <div class="action-buttons">
-          <button @click="testAlert" class="action-btn test-btn">
-            🧪 Teste Alert
+        </div>        <!-- Botões apenas Google Maps e MIIO -->
+        <div class="action-section-simple">
+          <button v-if="charger.Link_Gmap" @click="openGmaps" class="action-btn maps">
+            <div class="btn-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+              </svg>
+            </div>
+            <span>Google Maps</span>
           </button>
           
-          <button @click="loadDetails" class="action-btn details-btn" :disabled="isLoading">
-            <span v-if="isLoading">⏳ Carregando...</span>
-            <span v-else>🏷️ Ver Elementos Classificados</span>
+          <button v-if="charger.Link_MIIO" @click="openMIIO" class="action-btn miio">
+            <div class="btn-icon">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+              </svg>
+            </div>
+            <span>MIIO</span>
           </button>
           
-          <button v-if="charger.Link_MIIO" @click="openMIIO" class="action-btn miio-btn">
-            <span>🔋 MIIO</span>
-          </button>
-          
-          <button v-if="charger.Link_Gmap" @click="openGmaps" class="action-btn maps-btn">
-            <span>🗺️ Google Maps</span>
-          </button>
+          <!-- Fallback: mostrar sempre pelo menos um botão se não houver links -->
+          <div v-if="!charger.Link_Gmap && !charger.Link_MIIO" class="no-links-message">
+            <span class="text-gray-400 text-sm">Links não disponíveis</span>
+          </div>
         </div>
       </div>
     </CustomMapPopup>
@@ -281,15 +306,13 @@ export default defineComponent({
       
       window.open(props.charger.Link_MIIO, '_blank');
     };
-    
-    // Method to open Google Maps
+      // Method to open Google Maps
     const openGmaps = () => {
       if (!props.charger || !props.charger.Link_Gmap) return;
       
       window.open(props.charger.Link_Gmap, '_blank');
     };
-    
-    return {
+      return {
       isVisible,
       showModal,
       isLoading,
@@ -310,156 +333,289 @@ export default defineComponent({
 </script>
 
 <style scoped>
-/* Design com fundo DaisyUI original */
-.ev-station-card {
+/* Design compacto e largo com melhorias visuais aplicado ao container principal */
+.custom-map-popup > div {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: #1f2937; /* base-200 do DaisyUI */
+  background: linear-gradient(145deg, #1f2937 0%, #111827 100%);
+  border: 1px solid #374151;
   border-radius: 20px;
-  padding: 20px;
-  color: #f9fafb; /* base-content do DaisyUI */
-  min-width: 320px;
-  box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+  padding: 24px;
+  color: #f9fafb;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
   position: relative;
   overflow: hidden;
-  border: 1px solid #374151; /* base-300 do DaisyUI */
 }
 
-.ev-station-card::before {
+.custom-map-popup > div::before {
   content: '';
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
-  bottom: 0;
-  background: 
-    radial-gradient(circle at 20% 80%, rgba(59, 130, 246, 0.05) 0%, transparent 50%),
-    radial-gradient(circle at 80% 20%, rgba(236, 72, 153, 0.05) 0%, transparent 50%);
-  pointer-events: none;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
 }
 
-/* Header da estação */
+/* Header compacto */
 .station-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
   margin-bottom: 16px;
   position: relative;
   z-index: 1;
 }
 
-.station-title {
+.station-title-section {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  flex: 1;
 }
 
-.charging-icon {
-  background: #f59e0b; /* warning do DaisyUI */
-  border-radius: 50%;
-  width: 32px;
-  height: 32px;
+.charging-icon-modern {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  border-radius: 12px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
-  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
-  color: #1f2937; /* warning-content do DaisyUI */
+  box-shadow: 0 6px 20px rgba(245, 158, 11, 0.3);
+  color: #1f2937;
+  flex-shrink: 0;
 }
 
-.station-title h3 {
+.title-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.station-name {
   margin: 0;
   font-size: 18px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #f9fafb;
+  word-break: break-word;
+}
+
+.station-id-badge {
+  background: rgba(255,255,255,0.1);
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 10px;
   font-weight: 600;
-  text-shadow: 0 2px 4px rgba(55, 65, 81, 0.5);
-  color: #f9fafb; /* base-content */
-}
-
-.station-id {
-  background: #374151; /* base-300 */
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 12px;
-  font-weight: 500;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
   backdrop-filter: blur(10px);
-  border: 1px solid #4b5563; /* base-400 */
-  color: #f9fafb; /* base-content */
+  border: 1px solid rgba(255,255,255,0.1);
+  color: rgba(249, 250, 251, 0.8);
+  width: fit-content;
 }
 
-/* Grid de informações */
-.station-info {
-  display: grid;
+/* Seção de morada em destaque */
+.address-section {
+  display: flex;
+  align-items: center;
   gap: 12px;
-  margin-bottom: 20px;
+  background: rgba(239, 68, 68, 0.1);
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  backdrop-filter: blur(10px);
+  margin-bottom: 16px;
   position: relative;
   z-index: 1;
 }
 
-.info-item {
+.address-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
-.info-label {
-  font-size: 12px;
-  opacity: 0.8;
-  font-weight: 500;
-  color: rgba(249, 250, 251, 0.8);
+.address-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: #f9fafb;
+  line-height: 1.3;
+  word-break: break-word;
+  flex: 1;
+}
+
+/* Grid horizontal compacto (sem morada) */
+.info-grid-horizontal {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+  position: relative;
+  z-index: 1;
+  flex-wrap: wrap;
+}
+
+.info-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.05);
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.1);
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+  flex: 1;
+  min-width: 120px;
+}
+
+.info-item:hover {
+  background: rgba(255,255,255,0.08);
+  transform: translateY(-1px);
+}
+
+.info-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.info-icon.location {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+}
+
+.info-icon.power {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  color: white;
+}
+
+.info-icon.operator {
+  background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+  color: white;
 }
 
 .info-value {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   line-height: 1.2;
   color: #f9fafb;
+  word-break: break-word;
+  flex: 1;
 }
 
-/* Botões de ação modernos */
-.action-buttons {
+/* Seção de ações simples */
+.action-section-simple {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
   position: relative;
   z-index: 1;
+  margin-top: 16px;
+  padding: 0 4px;
 }
 
-.action-btn {
-  background: rgba(255,255,255,0.9);
-  color: #333;
-  border: none;
-  border-radius: 12px;
-  padding: 12px 16px;
+.no-links-message {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 12px;
+  border: 1px dashed #374151;
+  border-radius: 8px;
+  background: rgba(55, 65, 81, 0.3);
+}
+
+.action-btn.maps {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  border: 1px solid #10b981;
+  border-radius: 16px;
+  padding: 14px 18px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 10px;
   font-weight: 600;
-  font-size: 13px;
+  font-size: 14px;
+  color: white;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   backdrop-filter: blur(10px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
   position: relative;
   overflow: hidden;
 }
 
-.action-btn::before {
+.action-btn.maps::before {
   content: '';
   position: absolute;
   top: 0;
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
   transition: left 0.5s;
 }
 
-.action-btn:hover::before {
+.action-btn.maps:hover::before {
   left: 100%;
 }
 
-.action-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+.action-btn.miio {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  border: 1px solid #8b5cf6;
+  border-radius: 16px;
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-weight: 600;
+  font-size: 14px;
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+.action-btn.miio::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
+}
+
+.action-btn.miio:hover::before {
+  left: 100%;
+}
+
+.action-btn.maps:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 24px rgba(16, 185, 129, 0.4);
+  border-color: #34d399;
+}
+
+.action-btn.miio:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 24px rgba(139, 92, 246, 0.4);
+  border-color: #a78bfa;
 }
 
 .action-btn:active {
@@ -467,61 +623,13 @@ export default defineComponent({
 }
 
 .btn-icon {
-  font-size: 16px;
-}
-
-.animated-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.3s ease;
+  flex-shrink: 0;
 }
 
-.animated-icon svg {
-  animation: iconFloat 2s ease-in-out infinite;
-}
-
-.action-btn:hover .animated-icon svg {
-  animation: iconPulse 0.6s ease-in-out infinite;
-}
-
-@keyframes iconFloat {
-  0%, 100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-2px);
-  }
-}
-
-@keyframes iconPulse {
-  0%, 100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.1);
-  }
-}
-
-.miio-btn {
-  background: #6366f1; /* indigo suave */
-  color: #ffffff;
-}
-
-.maps-btn {
-  background: #06b6d4; /* cyan suave */
-  color: #ffffff;
-}
-
-.miio-btn:hover {
-  background: rgba(99, 102, 241, 0.85);
-}
-
-.maps-btn:hover {
-  background: rgba(6, 182, 212, 0.85);
-}
-
-/* Modal Styles */
+/* Modal Styles - mantidos mas melhorados */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -538,19 +646,19 @@ export default defineComponent({
 
 .modal-content {
   background: #1f2937;
-  border-radius: 16px;
+  border-radius: 20px;
   max-width: 90vw;
   max-height: 90vh;
   width: 800px;
   overflow: hidden;
   box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
-  border: 1px solid #374151;
+  border: 1px solid rgba(255,255,255,0.1);
   color: #f9fafb;
 }
 
 .modal-header {
-  padding: 20px 24px;
-  border-bottom: 1px solid #374151;
+  padding: 24px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -565,18 +673,23 @@ export default defineComponent({
 }
 
 .modal-close-btn {
-  background: none;
+  background: rgba(255,255,255,0.1);
   border: none;
   font-size: 24px;
   cursor: pointer;
   color: #9ca3af;
-  padding: 4px;
-  border-radius: 8px;
+  padding: 8px;
+  border-radius: 12px;
   transition: all 0.2s ease;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .modal-close-btn:hover {
-  background: #374151;
+  background: rgba(255,255,255,0.2);
   color: #f9fafb;
 }
 
@@ -587,8 +700,8 @@ export default defineComponent({
 }
 
 .modal-footer {
-  padding: 16px 24px;
-  border-top: 1px solid #374151;
+  padding: 20px 24px;
+  border-top: 1px solid rgba(255,255,255,0.1);
   display: flex;
   justify-content: flex-end;
   background: #111827;
@@ -596,17 +709,17 @@ export default defineComponent({
 
 .summary-section {
   margin-bottom: 24px;
-  padding: 16px;
+  padding: 20px;
   background: #111827;
-  border-radius: 12px;
-  border: 1px solid #374151;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.1);
 }
 
 .summary-item {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
 }
 
 .summary-label {
@@ -617,9 +730,9 @@ export default defineComponent({
 
 .summary-value {
   font-weight: 500;
-  padding: 4px 8px;
-  border-radius: 6px;
-  background: #374151;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.1);
 }
 
 .status-success {
@@ -655,29 +768,29 @@ export default defineComponent({
 
 .elemento-item {
   margin-bottom: 16px;
-  border-radius: 8px;
+  border-radius: 12px;
   overflow: hidden;
-  border: 1px solid #374151;
+  border: 1px solid rgba(255,255,255,0.1);
 }
 
 .elemento-header {
   background: #111827;
-  padding: 8px 12px;
+  padding: 12px 16px;
   font-weight: 600;
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: #9ca3af;
-  border-bottom: 1px solid #374151;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
 }
 
 .elemento-data {
   background: #0f172a;
-  padding: 16px;
+  padding: 20px;
   margin: 0;
-  font-family: 'Courier New', monospace;
+  font-family: 'Fira Code', 'Courier New', monospace;
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.6;
   overflow-x: auto;
   color: #e2e8f0;
   border: none;
@@ -691,19 +804,19 @@ export default defineComponent({
 }
 
 .raw-data-container {
-  border-radius: 8px;
+  border-radius: 12px;
   overflow: hidden;
-  border: 1px solid #374151;
+  border: 1px solid rgba(255,255,255,0.1);
   margin-bottom: 16px;
 }
 
 .raw-data {
   background: #0f172a;
-  padding: 16px;
+  padding: 20px;
   margin: 0;
-  font-family: 'Courier New', monospace;
+  font-family: 'Fira Code', 'Courier New', monospace;
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.6;
   overflow-x: auto;
   color: #e2e8f0;
   border: none;
@@ -712,61 +825,46 @@ export default defineComponent({
 }
 
 .copy-btn {
-  background: #059669;
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
   color: white;
   border: none;
-  padding: 8px 16px;
-  border-radius: 8px;
-  font-size: 12px;
+  padding: 10px 20px;
+  border-radius: 12px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
   margin-top: 12px;
 }
 
 .copy-btn:hover {
-  background: #047857;
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(5, 150, 105, 0.4);
 }
 
 .modal-btn {
-  padding: 10px 20px;
+  padding: 12px 24px;
   border: none;
-  border-radius: 8px;
+  border-radius: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
 }
 
 .modal-btn.primary {
-  background: #3b82f6;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
   color: white;
 }
 
 .modal-btn.primary:hover {
-  background: #2563eb;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.4);
 }
 
 .no-elementos {
-  padding: 32px;
+  padding: 40px;
   text-align: center;
   color: #9ca3af;
   font-style: italic;
-}
-
-/* Detalhes do botão com loading */
-.details-btn {
-  background: #7c3aed;
-  color: white;
-}
-
-.details-btn:hover:not(:disabled) {
-  background: #6d28d9;
-}
-
-.details-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none !important;
 }
 </style>

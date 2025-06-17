@@ -22,6 +22,21 @@
   z-index: 1000 !important;
 }
 
+/* Hide default Leaflet popups to avoid conflicts with custom popup */
+.leaflet-popup-pane {
+  display: none !important;
+}
+
+.leaflet-popup {
+  display: none !important;
+}
+
+/* Ensure our custom popup is always visible */
+.custom-map-popup {
+  display: block !important;
+  z-index: 10000 !important;
+}
+
 /* Custom scrollbar for panels */
 .overflow-y-auto::-webkit-scrollbar {
   width: 4px;
