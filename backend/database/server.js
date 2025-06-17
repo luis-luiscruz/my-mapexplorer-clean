@@ -432,6 +432,136 @@ app.post('/api/charger-details/:id', async (req, res) => {
       status: 'error',
       message: error.message,
       charger_id: id
+    });  }
+});
+
+// Script execution endpoint
+app.post('/api/run-script', async (req, res) => {
+  const { script, charger_id, latitude, longitude, address } = req.body;
+  
+  console.log(`[RUN-SCRIPT] Received request for script: ${script}`);
+  console.log(`[RUN-SCRIPT] Charger ID: ${charger_id}, Coordinates: ${latitude}, ${longitude}`);
+  
+  if (!script) {
+    return res.status(400).json({ 
+      error: 'Missing script name',
+      status: 'error' 
+    });
+  }
+  
+  try {
+    const { spawn } = require('child_process');
+    const scriptPath = path.join(__dirname, '..', 'scripts', script);
+    
+    console.log(`[RUN-SCRIPT] Executing Python script: ${scriptPath}`);
+    
+    // Check if Python script exists
+    if (!fs.existsSync(scriptPath)) {
+      throw new Error(`Python script not found at: ${scriptPath}`);
+    }
+    
+    const startTime = Date.now();
+    
+    // Prepare script arguments
+    const args = [scriptPath];
+    if (charger_id) args.push(charger_id);
+    if (latitude) args.push(latitude.toString());
+    if (longitude) args.push(longitude.toString());
+    if (address) args.push(address);
+    
+    console.log(`[RUN-SCRIPT] Script arguments:`, args);
+    
+    const pythonProcess = spawn('python', args, {
+      cwd: path.join(__dirname, '..', 'scripts'),
+      env: { ...process.env }
+    });
+    
+    let outputData = '';
+    let errorData = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      outputData += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      errorData += data.toString();
+      console.error(`[RUN-SCRIPT] Python stderr: ${data}`);
+    });
+    
+    pythonProcess.on('close', (code) => {
+      const executionTime = Date.now() - startTime;
+      console.log(`[RUN-SCRIPT] Python script finished with code ${code}, execution time: ${executionTime}ms`);
+      
+      if (code === 0) {
+        try {
+          console.log(`[RUN-SCRIPT] Script output:`, outputData);
+          
+          // Try to parse as JSON
+          let result;
+          try {
+            result = JSON.parse(outputData);
+          } catch {
+            // If not JSON, return as text
+            result = { 
+              output: outputData,
+              type: 'text'
+            };
+          }
+          
+          res.json({
+            ...result,
+            execution_time: executionTime,
+            script_name: script,
+            status: 'success'
+          });
+          
+        } catch (parseError) {
+          console.error(`[RUN-SCRIPT] Parse error:`, parseError);
+          
+          res.status(500).json({
+            error: 'Failed to parse script output',
+            status: 'error',
+            raw_output: outputData,
+            stderr: errorData,
+            execution_time: executionTime,
+            script_name: script
+          });
+        }
+      } else {
+        console.error(`[RUN-SCRIPT] Script failed with code ${code}`);
+        res.status(500).json({
+          error: `Script failed with exit code ${code}`,
+          status: 'error',
+          stderr: errorData,
+          raw_output: outputData,
+          execution_time: executionTime,
+          script_name: script
+        });
+      }
+    });
+    
+    // Set timeout for the request (60 seconds for scripts)
+    const timeout = setTimeout(() => {
+      pythonProcess.kill('SIGTERM');
+      res.status(504).json({
+        error: 'Script execution timeout',
+        status: 'timeout',
+        message: 'Script execution exceeded 60 seconds',
+        script_name: script
+      });
+    }, 60000);
+    
+    pythonProcess.on('close', () => {
+      clearTimeout(timeout);
+    });
+    
+  } catch (error) {
+    console.error(`[RUN-SCRIPT] Error executing script:`, error);
+    res.status(500).json({
+      error: 'Failed to execute script',
+      status: 'error',
+      message: error.message,
+      script_name: script
     });
   }
 });

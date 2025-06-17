@@ -558,7 +558,7 @@ export default defineComponent({
       lastUpdate: Date;
       locationName?: string;
     } | null>(null);    // Panel states - only left panel now
-    const leftPanelOpen = ref(true);    // Computed property to determine panel content based on showLocations
+    const leftPanelOpen = ref(true);    // Start with panel open by default
     const leftPanelContent = computed(() => {
       const content = props.showLocations ? 'locations' : 'chargers';
       console.log('🔄 TOGGLE: MapExplorer leftPanelContent computed, showLocations:', props.showLocations, 'content:', content);
@@ -1317,10 +1317,9 @@ export default defineComponent({
             // Center map on charger
             if (map) {
               map.panTo([lat, lng]);
-            }
-              // Show custom popup with charger data
+            }              // Show custom popup with charger data
             selectedCharger.value = charger;
-            mapOffset.value = 50; // Lower map by 50px when popup opens
+            // mapOffset.value = 50; // Remove map offset - let popup handle its own positioning
             chargerPopupVisible.value = true;
           });
           
@@ -1442,7 +1441,7 @@ export default defineComponent({
         easeLinearity: 0.1
       });      // Show the custom charger popup
       selectedCharger.value = charger;
-      mapOffset.value = 50; // Lower map by 50px when popup opens
+      // mapOffset.value = 50; // Remove map offset - let popup handle its own positioning
       setTimeout(() => {
         chargerPopupVisible.value = true;
       }, 300);
@@ -1540,14 +1539,9 @@ export default defineComponent({
         if (map) {
         map.remove();
       }
-    });
-
-    // Watch for popup visibility changes to reset map offset
+    });    // Watch for popup visibility changes - removed map offset reset since we no longer use it
     watch(chargerPopupVisible, (newValue) => {
-      if (!newValue) {
-        // Popup is closed, reset map offset
-        mapOffset.value = 0;
-      }
+      // Popup state change - no additional actions needed since popup handles its own positioning
     });
 
     return {

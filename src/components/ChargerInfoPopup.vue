@@ -1,11 +1,11 @@
 <template>
-  <div>
-    <CustomMapPopup
+  <div>    <CustomMapPopup
       v-if="charger"
       v-model="isVisible"
       :lat-lng="position"
       :map="map"
       :title="charger.desc_loja || 'Posto de Carregamento'"
+      :force-top-position="showScriptResults && !isLoadingScript"
     >
       <div>
         <!-- Header compacto -->
@@ -54,7 +54,9 @@
             </div>
             <span class="info-value">{{ charger.OPERADOR }}</span>
           </div>
-        </div>        <!-- Botões apenas Google Maps e MIIO -->
+        </div>
+
+        <!-- Botões apenas Google Maps e MIIO -->
         <div class="action-section-simple">
           <button v-if="charger.Link_Gmap" @click="openGmaps" class="action-btn maps">
             <div class="btn-icon">
@@ -74,84 +76,84 @@
             <span>MIIO</span>
           </button>
           
+          <!-- Script Analysis Button -->
+          <button @click="runScriptAnalysis" class="action-btn script" :disabled="isLoadingScript">
+            <div class="btn-icon">
+              <svg v-if="!isLoadingScript" width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0L19.2 12l-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/>
+              </svg>
+              <div v-else class="loading-spinner"></div>
+            </div>
+            <span>{{ isLoadingScript ? 'Analisando...' : 'Analisar' }}</span>
+          </button>
+          
           <!-- Fallback: mostrar sempre pelo menos um botão se não houver links -->
           <div v-if="!charger.Link_Gmap && !charger.Link_MIIO" class="no-links-message">
             <span class="text-gray-400 text-sm">Links não disponíveis</span>
           </div>
+        </div>        <!-- Script Analysis Results Section - Directly in Popup -->
+        <div v-if="showScriptResults" class="script-analysis-section">
+          
+          <div v-if="isLoadingScript" class="loading-section">
+            <div class="loading-indicator">
+              <div class="loading-spinner"></div>
+              <div class="loading-text">
+                <h4>🔍 Executando análise...</h4>
+                <p>Aguarde enquanto processamos os dados do posto</p>
+              </div>
+            </div>
+          </div>
+          
+          <div v-else-if="scriptResults?.error" class="error-section">
+            <div class="error-message">
+              ❌ {{ scriptResults.message }}
+            </div>
+          </div>
+          
+          <div v-else-if="scriptResults">
+            
+            <!-- Display elementos_classificados in a clean format -->
+            <div v-if="scriptResults.elementos_classificados">
+              <div class="elemento-card">
+                <div class="elemento-row">
+                  <span class="label">Conector:</span>
+                  <span class="value">{{ scriptResults.elementos_classificados.conector }}</span>
+                </div>
+                <div class="elemento-row">
+                  <span class="label">Potência:</span>
+                  <span class="value">{{ scriptResults.elementos_classificados.potencia }}</span>
+                </div>
+                <div class="elemento-row">
+                  <span class="label">Status:</span>
+                  <span class="value status" :class="getStatusClass(scriptResults.elementos_classificados.status)">
+                    {{ scriptResults.elementos_classificados.status }}
+                  </span>
+                </div>
+                <div v-if="scriptResults.elementos_classificados.precos && scriptResults.elementos_classificados.precos.length > 0" class="elemento-row">
+                  <span class="label">Preços:</span>
+                  <div class="precos-list">
+                    <span v-for="preco in scriptResults.elementos_classificados.precos" :key="preco" class="preco-tag">
+                      {{ preco }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Fallback: show raw JSON if no elementos_classificados -->
+            <div v-else class="raw-json-section">
+              <h5>📄 Dados Retornados</h5>
+              <pre class="json-display">{{ JSON.stringify(scriptResults, null, 2) }}</pre>
+            </div>
+          </div>
         </div>
       </div>
     </CustomMapPopup>
-
-    <!-- Modal para Elementos Classificados -->
-    <div v-if="showModal" class="modal-overlay" @click="closeModal">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h3>🏷️ Elementos Classificados - Posto #{{ charger?.Posto_ID }}</h3>
-          <button @click="closeModal" class="modal-close-btn">✕</button>
-        </div>
-        
-        <div class="modal-body">
-          <!-- Summary Section -->
-          <div v-if="ccsData" class="summary-section">
-            <div class="summary-item">
-              <span class="summary-label">Status:</span>
-              <span class="summary-value" :class="getStatusClass(ccsData.status)">
-                {{ ccsData.status }}
-              </span>
-            </div>
-            
-            <div v-if="ccsData.execution_time" class="summary-item">
-              <span class="summary-label">Tempo de execução:</span>
-              <span class="summary-value">{{ ccsData.execution_time }}s</span>
-            </div>
-          </div>
-
-          <!-- Elementos Classificados Section -->
-          <div v-if="ccsData?.elementos_classificados" class="elementos-section">
-            <h4>🏷️ Elementos Classificados:</h4>
-            <div v-if="Array.isArray(ccsData.elementos_classificados) && ccsData.elementos_classificados.length > 0">
-              <div v-for="(elemento, index) in ccsData.elementos_classificados" :key="index" class="elemento-item">
-                <div class="elemento-header">Elemento {{ index + 1 }}</div>
-                <pre class="elemento-data">{{ JSON.stringify(elemento, null, 2) }}</pre>
-              </div>
-            </div>
-            <div v-else-if="ccsData.elementos_classificados && typeof ccsData.elementos_classificados === 'object'">
-              <div class="elemento-item">
-                <div class="elemento-header">Elementos Classificados</div>
-                <pre class="elemento-data">{{ JSON.stringify(ccsData.elementos_classificados, null, 2) }}</pre>
-              </div>
-            </div>
-            <div v-else class="no-elementos">
-              <p>Nenhum elemento classificado encontrado.</p>
-            </div>
-            
-            <button @click="copyElementosToClipboard" class="copy-btn">
-              📋 Copiar Elementos Classificados
-            </button>
-          </div>
-
-          <!-- Fallback: Raw JSON Section -->
-          <div v-else class="raw-data-section">
-            <h4>📄 Dados Brutos (JSON):</h4>
-            <div class="raw-data-container">
-              <pre class="raw-data">{{ formatRawData(ccsData) }}</pre>
-            </div>
-            <button @click="copyToClipboard" class="copy-btn">
-              📋 Copiar JSON
-            </button>
-          </div>
-        </div>
-        
-        <div class="modal-footer">
-          <button @click="closeModal" class="modal-btn primary">Fechar</button>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, computed, watch } from 'vue';
+import { defineComponent, ref, computed, watch, nextTick } from 'vue';
 import CustomMapPopup from './CustomMapPopup.vue';
 
 export default defineComponent({
@@ -177,9 +179,9 @@ export default defineComponent({
   
   setup(props, { emit }) {
     const isVisible = ref(props.modelValue);
-    const showModal = ref(false);
-    const isLoading = ref(false);
-    const ccsData = ref<any>(null);
+    const isLoadingScript = ref(false);
+    const scriptResults = ref<any>(null);
+    const showScriptResults = ref(false);
     
     watch(() => props.modelValue, (newValue) => {
       isVisible.value = newValue;
@@ -198,51 +200,11 @@ export default defineComponent({
       return { lat, lng };
     });
 
-    const loadDetails = async () => {
-      if (!props.charger?.Posto_ID) {
-        console.error('No charger ID available');
-        return;
-      }
-      
-      console.log('Loading elementos classificados for charger ID:', props.charger.Posto_ID);
-      isLoading.value = true;
-      
-      try {
-        const response = await fetch(`http://localhost:3015/api/charger-details/${props.charger.Posto_ID}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          }
-        });
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        console.log('Elementos classificados received:', data);
-        
-        ccsData.value = data;
-        showModal.value = true;
-        
-      } catch (error) {
-        console.error('Error loading elementos classificados:', error);
-        alert('Error loading elementos classificados. Check console for details.');
-      } finally {
-        isLoading.value = false;
-      }
-    };
-
-    const closeModal = () => {
-      showModal.value = false;
-      ccsData.value = null;
-    };
-
     const getStatusClass = (status: string) => {
       if (!status) return '';
       
       const statusLower = status.toLowerCase();
-      if (statusLower.includes('success') || statusLower.includes('encontrado')) {
+      if (statusLower.includes('success') || statusLower.includes('encontrado') || statusLower.includes('disponível')) {
         return 'status-success';
       } else if (statusLower.includes('error') || statusLower.includes('erro')) {
         return 'status-error';
@@ -251,82 +213,122 @@ export default defineComponent({
       }
       return 'status-info';
     };
-
-    const formatRawData = (data: any) => {
-      if (!data) return '';
-      return JSON.stringify(data, null, 2);
-    };
-
-    const copyElementosToClipboard = async () => {
-      if (!ccsData.value?.elementos_classificados) return;
-      
-      try {
-        const text = JSON.stringify(ccsData.value.elementos_classificados, null, 2);
-        await navigator.clipboard.writeText(text);
-        alert('Elementos classificados copiados para a área de transferência!');
-      } catch (error) {
-        console.error('Erro ao copiar elementos classificados:', error);
-        const textarea = document.createElement('textarea');
-        textarea.value = JSON.stringify(ccsData.value.elementos_classificados, null, 2);
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textarea);
-        alert('Elementos classificados copiados para a área de transferência!');
-      }
-    };
-
-    const copyToClipboard = async () => {
-      if (!ccsData.value) return;
-      
-      try {
-        const text = JSON.stringify(ccsData.value, null, 2);
-        await navigator.clipboard.writeText(text);
-        alert('JSON copiado para a área de transferência!');
-      } catch (error) {
-        console.error('Erro ao copiar JSON:', error);
-        const textarea = document.createElement('textarea');
-        textarea.value = JSON.stringify(ccsData.value, null, 2);
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textarea);
-        alert('JSON copiado para a área de transferência!');
-      }
-    };
     
-    // Computed property for Google Maps link
-    const googleMapsUrl = computed(() => {
-      if (!props.charger || !props.charger.Link_Gmap) return null;
-      return props.charger.Link_Gmap;
-    });
-      // Method to open MIIO link
+    // Method to open MIIO link
     const openMIIO = () => {
       if (!props.charger || !props.charger.Link_MIIO) return;
-      
       window.open(props.charger.Link_MIIO, '_blank');
     };
-      // Method to open Google Maps
+
+    // Method to open Google Maps
     const openGmaps = () => {
       if (!props.charger || !props.charger.Link_Gmap) return;
-      
       window.open(props.charger.Link_Gmap, '_blank');
     };
-      return {
+
+    // Method to run script analysis
+    const runScriptAnalysis = async () => {
+      if (!props.charger) return;
+      
+      // Show results section immediately with loading state
+      isLoadingScript.value = true;
+      scriptResults.value = null;
+      showScriptResults.value = true;
+      
+      try {
+        // Call real script endpoint
+        const response = await fetch('/api/run-script', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            script: 'extrair_paineis_tarifario.py',
+            charger_id: props.charger.Posto_ID,
+            latitude: props.charger.Latitude,
+            longitude: props.charger.Longitude,
+            address: props.charger.MORADA
+          })
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        // Clean and parse the output to extract just the JSON
+        let cleanedData = data;
+        if (data.output && typeof data.output === 'string') {
+          // Remove [API] prefixes and clean the text
+          const cleanedOutput = data.output
+            .replace(/\[API\]\s*/g, '')  // Remove [API] prefixes
+            .replace(/�/g, '€')          // Fix encoding issues
+            .trim();
+          
+          try {
+            // Try to parse as JSON
+            cleanedData = JSON.parse(cleanedOutput);
+          } catch {
+            // If parsing fails, try to extract just the elementos_classificados part
+            const match = cleanedOutput.match(/"elementos_classificados":\s*\{[^}]+\}/);
+            if (match) {
+              try {
+                cleanedData = JSON.parse(`{${match[0]}}`);
+              } catch {
+                cleanedData = { raw_output: cleanedOutput };
+              }
+            } else {
+              cleanedData = { raw_output: cleanedOutput };
+            }
+          }
+        }
+        
+        // Handle the actual data structure returned by the Python script
+        // The script returns: { blocos_ccs: [{ elementos_classificados: {...} }] }
+        // We need to extract the first elementos_classificados for display
+        if (cleanedData.blocos_ccs && Array.isArray(cleanedData.blocos_ccs) && cleanedData.blocos_ccs.length > 0) {
+          const firstBloco = cleanedData.blocos_ccs[0];
+          if (firstBloco.elementos_classificados) {
+            // Create a cleaned structure for the display
+            scriptResults.value = {
+              ...cleanedData,
+              elementos_classificados: firstBloco.elementos_classificados,
+              total_blocos: cleanedData.total_blocos_ccs || cleanedData.blocos_ccs.length,
+              posto_id: cleanedData.posto_id
+            };
+          } else {
+            scriptResults.value = cleanedData;
+          }
+        } else {
+          scriptResults.value = cleanedData;
+        }
+        
+      } catch (error) {
+        console.error('Script execution failed:', error);
+        scriptResults.value = {
+          error: true,
+          message: 'Falha na execução: ' + (error as Error).message
+        };      } finally {
+        isLoadingScript.value = false;
+        // Ensure popup repositions after loading is complete
+        nextTick(() => {
+          // The forceTopPosition prop should trigger a position update in CustomMapPopup
+          console.log('Script analysis complete, forceTopPosition:', showScriptResults.value && !isLoadingScript.value);
+        });
+      }
+    };
+
+    return {
       isVisible,
-      showModal,
-      isLoading,
-      ccsData,
+      isLoadingScript,
+      scriptResults,
+      showScriptResults,
       position,
-      loadDetails,
-      closeModal,
       getStatusClass,
-      formatRawData,
-      copyElementosToClipboard,
-      copyToClipboard,
-      googleMapsUrl,
       openMIIO,
-      openGmaps
+      openGmaps,
+      runScriptAnalysis
     };
   }
 });
@@ -417,49 +419,41 @@ export default defineComponent({
   width: fit-content;
 }
 
-/* Seção de morada em destaque */
+/* Address section */
 .address-section {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  background: rgba(239, 68, 68, 0.1);
-  padding: 12px 16px;
-  border-radius: 12px;
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  backdrop-filter: blur(10px);
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   margin-bottom: 16px;
-  position: relative;
-  z-index: 1;
 }
 
 .address-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-  color: white;
+  background: rgba(139, 92, 246, 0.2);
+  border-radius: 8px;
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
+  color: #a78bfa;
   flex-shrink: 0;
+  margin-top: 2px;
 }
 
 .address-text {
   font-size: 14px;
-  font-weight: 600;
-  color: #f9fafb;
-  line-height: 1.3;
-  word-break: break-word;
+  line-height: 1.4;
+  color: #e5e7eb;
   flex: 1;
 }
 
-/* Grid horizontal compacto (sem morada) */
+/* Info grid horizontal */
 .info-grid-horizontal {
   display: flex;
   gap: 16px;
-  margin-bottom: 16px;
-  position: relative;
-  z-index: 1;
+  margin-bottom: 20px;
   flex-wrap: wrap;
 }
 
@@ -467,159 +461,93 @@ export default defineComponent({
   display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(255,255,255,0.05);
+  background: rgba(255, 255, 255, 0.05);
   padding: 8px 12px;
   border-radius: 12px;
-  border: 1px solid rgba(255,255,255,0.1);
-  backdrop-filter: blur(10px);
-  transition: all 0.3s ease;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   flex: 1;
   min-width: 120px;
 }
 
-.info-item:hover {
-  background: rgba(255,255,255,0.08);
-  transform: translateY(-1px);
-}
-
 .info-icon {
-  width: 28px;
-  height: 28px;
   border-radius: 8px;
+  width: 20px;
+  height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 }
 
-.info-icon.location {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-  color: white;
-}
-
 .info-icon.power {
-  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
-  color: white;
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
 }
 
 .info-icon.operator {
-  background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
-  color: white;
+  background: rgba(59, 130, 246, 0.2);
+  color: #3b82f6;
 }
 
 .info-value {
   font-size: 13px;
   font-weight: 600;
-  line-height: 1.2;
   color: #f9fafb;
-  word-break: break-word;
   flex: 1;
 }
 
-/* Seção de ações simples */
+/* Action buttons */
 .action-section-simple {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
   gap: 12px;
-  position: relative;
-  z-index: 1;
-  margin-top: 16px;
-  padding: 0 4px;
+  flex-wrap: wrap;
 }
 
-.no-links-message {
-  grid-column: 1 / -1;
-  text-align: center;
-  padding: 12px;
-  border: 1px dashed #374151;
-  border-radius: 8px;
-  background: rgba(55, 65, 81, 0.3);
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #f9fafb;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  position: relative;
+  overflow: hidden;
+  flex: 1;
+  min-width: 120px;
+  text-decoration: none;
 }
 
 .action-btn.maps {
   background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  border: 1px solid #10b981;
-  border-radius: 16px;
-  padding: 14px 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  font-weight: 600;
-  font-size: 14px;
-  color: white;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-  position: relative;
-  overflow: hidden;
-}
-
-.action-btn.maps::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-  transition: left 0.5s;
-}
-
-.action-btn.maps:hover::before {
-  left: 100%;
+  border-color: #10b981;
 }
 
 .action-btn.miio {
   background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
-  border: 1px solid #8b5cf6;
-  border-radius: 16px;
-  padding: 14px 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  font-weight: 600;
-  font-size: 14px;
-  color: white;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
-  position: relative;
-  overflow: hidden;
+  border-color: #8b5cf6;
 }
 
-.action-btn.miio::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-  transition: left 0.5s;
+.action-btn.script {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  border-color: #f59e0b;
 }
 
-.action-btn.miio:hover::before {
-  left: 100%;
+.action-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
-.action-btn.maps:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 12px 24px rgba(16, 185, 129, 0.4);
-  border-color: #34d399;
-}
-
-.action-btn.miio:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 12px 24px rgba(139, 92, 246, 0.4);
-  border-color: #a78bfa;
-}
-
-.action-btn:active {
-  transform: translateY(0);
+.action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .btn-icon {
@@ -629,242 +557,159 @@ export default defineComponent({
   flex-shrink: 0;
 }
 
-/* Modal Styles - mantidos mas melhorados */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.8);
+.no-links-message {
+  text-align: center;
+  color: #9ca3af;
+  font-style: italic;
+  padding: 20px;
+}
+
+/* Script Analysis Section */
+.script-analysis-section {
+  margin-top: 20px;
+}
+
+.loading-section {
+  text-align: center;
+  padding: 20px;
+}
+
+.loading-indicator {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  backdrop-filter: blur(8px);
+  gap: 12px;
 }
 
-.modal-content {
-  background: #1f2937;
-  border-radius: 20px;
-  max-width: 90vw;
-  max-height: 90vh;
-  width: 800px;
-  overflow: hidden;
-  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(255,255,255,0.1);
+.loading-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top: 2px solid #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-text h4 {
+  margin: 0 0 8px 0;
   color: #f9fafb;
+  font-size: 16px;
 }
 
-.modal-header {
-  padding: 24px;
-  border-bottom: 1px solid rgba(255,255,255,0.1);
+.loading-text p {
+  margin: 0;
+  color: #9ca3af;
+  font-size: 14px;
+}
+
+.error-section {
+  padding: 16px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 12px;
+}
+
+.error-message {
+  color: #fca5a5;
+  font-weight: 600;
+  text-align: center;
+}
+
+.elemento-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.elemento-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #111827;
+  margin-bottom: 8px;
 }
 
-.modal-header h3 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: #f9fafb;
+.elemento-row:last-child {
+  margin-bottom: 0;
 }
 
-.modal-close-btn {
-  background: rgba(255,255,255,0.1);
-  border: none;
-  font-size: 24px;
-  cursor: pointer;
+.elemento-row .label {
   color: #9ca3af;
-  padding: 8px;
-  border-radius: 12px;
-  transition: all 0.2s ease;
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.modal-close-btn:hover {
-  background: rgba(255,255,255,0.2);
-  color: #f9fafb;
-}
-
-.modal-body {
-  padding: 24px;
-  overflow-y: auto;
-  max-height: calc(90vh - 160px);
-}
-
-.modal-footer {
-  padding: 20px 24px;
-  border-top: 1px solid rgba(255,255,255,0.1);
-  display: flex;
-  justify-content: flex-end;
-  background: #111827;
-}
-
-.summary-section {
-  margin-bottom: 24px;
-  padding: 20px;
-  background: #111827;
-  border-radius: 16px;
-  border: 1px solid rgba(255,255,255,0.1);
-}
-
-.summary-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-.summary-label {
+  font-size: 13px;
   font-weight: 600;
-  color: #9ca3af;
-  min-width: 140px;
 }
 
-.summary-value {
-  font-weight: 500;
-  padding: 6px 12px;
-  border-radius: 8px;
-  background: rgba(255,255,255,0.1);
+.elemento-row .value {
+  color: #f9fafb;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.elemento-row .value.status {
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 12px;
 }
 
 .status-success {
-  background: #065f46 !important;
+  background: rgba(16, 185, 129, 0.2);
   color: #10b981;
 }
 
 .status-error {
-  background: #7f1d1d !important;
-  color: #ef4444;
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
 }
 
 .status-warning {
-  background: #78350f !important;
-  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
 }
 
 .status-info {
-  background: #1e3a8a !important;
-  color: #3b82f6;
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
 }
 
-.elementos-section {
-  margin-bottom: 24px;
+.precos-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
 }
 
-.elementos-section h4 {
-  margin: 0 0 16px 0;
-  font-size: 16px;
+.preco-tag {
+  background: rgba(139, 92, 246, 0.2);
+  color: #a78bfa;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 11px;
   font-weight: 600;
+}
+
+.raw-json-section h5 {
+  margin: 0 0 12px 0;
   color: #f9fafb;
+  font-size: 14px;
 }
 
-.elemento-item {
-  margin-bottom: 16px;
-  border-radius: 12px;
-  overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.1);
-}
-
-.elemento-header {
-  background: #111827;
-  padding: 12px 16px;
-  font-weight: 600;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: #9ca3af;
-  border-bottom: 1px solid rgba(255,255,255,0.1);
-}
-
-.elemento-data {
+.json-display {
   background: #0f172a;
-  padding: 20px;
-  margin: 0;
-  font-family: 'Fira Code', 'Courier New', monospace;
-  font-size: 12px;
-  line-height: 1.6;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 12px;
+  font-family: 'Fira Code', 'SF Mono', Monaco, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #e5e7eb;
+  white-space: pre-wrap;
   overflow-x: auto;
-  color: #e2e8f0;
-  border: none;
-}
-
-.raw-data-section h4 {
-  margin: 0 0 16px 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: #f9fafb;
-}
-
-.raw-data-container {
-  border-radius: 12px;
-  overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.1);
-  margin-bottom: 16px;
-}
-
-.raw-data {
-  background: #0f172a;
-  padding: 20px;
-  margin: 0;
-  font-family: 'Fira Code', 'Courier New', monospace;
-  font-size: 12px;
-  line-height: 1.6;
-  overflow-x: auto;
-  color: #e2e8f0;
-  border: none;
-  max-height: 300px;
+  max-height: 200px;
   overflow-y: auto;
-}
-
-.copy-btn {
-  background: linear-gradient(135deg, #059669 0%, #047857 100%);
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 12px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  margin-top: 12px;
-}
-
-.copy-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(5, 150, 105, 0.4);
-}
-
-.modal-btn {
-  padding: 12px 24px;
-  border: none;
-  border-radius: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.modal-btn.primary {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-  color: white;
-}
-
-.modal-btn.primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(59, 130, 246, 0.4);
-}
-
-.no-elementos {
-  padding: 40px;
-  text-align: center;
-  color: #9ca3af;
-  font-style: italic;
 }
 </style>

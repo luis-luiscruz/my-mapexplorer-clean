@@ -34,19 +34,29 @@ export default defineComponent({
     },    map: {
       type: Object,
       required: true
-    },
-    title: {
+    },    title: {
       type: String,
       default: 'Informações'
+    },
+    forceTopPosition: {
+      type: Boolean,
+      default: false
     }
   },
   emits: ['update:modelValue'],
   setup(props, { emit }) {    const visible = ref(props.modelValue);
     const position = ref({ x: 0, y: 0 });
-    const isPositionedBelow = ref(false);// Watch for visibility changes
+    const isPositionedBelow = ref(false);    // Watch for visibility changes
     watch(() => props.modelValue, (newValue) => {
       visible.value = newValue;
       if (newValue) {
+        updatePosition();
+      }
+    });
+      // Watch for forceTopPosition changes
+    watch(() => props.forceTopPosition, (newValue) => {
+      console.log('forceTopPosition changed to:', newValue);
+      if (visible.value) {
         updatePosition();
       }
     });
@@ -86,7 +96,19 @@ export default defineComponent({
       const navbarHeight = 64;
       const minGapFromNavbar = 30; // Increased gap
       const popupHeight = 150;      let safeX = point.x;
-      let safeY = Math.max(point.y - 160, 120); // 120px from top minimum
+      let safeY;
+      
+      console.log('updatePosition called, forceTopPosition:', props.forceTopPosition);
+        if (props.forceTopPosition) {
+        // Position popup just below the navbar when forceTopPosition is true
+        safeY = navbarHeight + minGapFromNavbar; // Position right below navbar
+        safeX = Math.max(20, Math.min(point.x, bounds.width - 700)); // Center horizontally but keep within bounds for wider popup
+        console.log('Positioning at top, safeY:', safeY);
+      } else {
+        // Normal positioning relative to marker
+        safeY = Math.max(point.y - 160, navbarHeight + minGapFromNavbar); // 120px from top minimum
+        console.log('Normal positioning, safeY:', safeY);
+      }
       
       position.value = { x: safeX, y: safeY };
     };
@@ -112,8 +134,8 @@ export default defineComponent({
   z-index: 10000;
   transform: translate(-50%, 0%);
   pointer-events: auto;
-  max-width: 500px;
-  width: 480px;
+  max-width: 700px;
+  width: 680px;
   margin-top: 0px;
   background: #1f2937; /* cor base-200 do DaisyUI */
   border: 1px solid #374151; /* cor base-300 do DaisyUI */
