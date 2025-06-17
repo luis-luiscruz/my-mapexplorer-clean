@@ -1,11 +1,12 @@
 <template>  <div
     v-if="visible"
     class="custom-map-popup"
+    :class="{ 'popup-below': isPositionedBelow }"
     :style="{
       left: `${position.x}px`,
-      top: `${position.y - 20}px`
+      top: `${position.y - (isPositionedBelow ? -20 : 20)}px`
     }"
-  >    <div class="custom-map-popup-content rounded-lg shadow-lg">
+  ><div class="custom-map-popup-content rounded-lg shadow-lg">
       <div class="px-0 py-0 relative">
         <button @click="close" class="close-btn">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -45,9 +46,9 @@ export default defineComponent({
     }
   },
   emits: ['update:modelValue'],
-  setup(props, { emit }) {
-    const visible = ref(props.modelValue);
-    const position = ref({ x: 0, y: 0 });    // Watch for visibility changes
+  setup(props, { emit }) {    const visible = ref(props.modelValue);
+    const position = ref({ x: 0, y: 0 });
+    const isPositionedBelow = ref(false);// Watch for visibility changes
     watch(() => props.modelValue, (newValue) => {
       visible.value = newValue;
       if (newValue) {
@@ -86,13 +87,34 @@ export default defineComponent({
       // Get map container dimensions
       const container = props.map.getContainer();
       const bounds = container.getBoundingClientRect();
+        // Detect navbar/topbar height dynamically
+      const navbar = document.querySelector('nav, .navbar, .top-bar, header') as HTMLElement;
+      const navbarHeight = navbar ? navbar.offsetHeight : 64; // Default to 64px if not found
       
-      // Calculate safe position (keep popup within visible area)
-      let safeX = Math.min(Math.max(point.x, 150), bounds.width - 150);
+      // Popup height estimate (for better positioning)
+      const popupHeight = 200; // Approximate popup height
+        // Calculate safe horizontal position
+      let safeX = Math.min(Math.max(point.x, 180), bounds.width - 180);
+        // Calculate safe vertical position with navbar awareness
+      let safeY = point.y;
+      let positionedBelow = false;
       
-      // Ensure minimum distance from top (navbar height is typically 64px)
-      let safeY = Math.max(point.y, 90); // At least 90px from the top to avoid navbar
+      // Check if popup would go above the navbar
+      if (safeY - popupHeight < navbarHeight + 10) {
+        // Position popup below the marker instead of above
+        safeY = Math.max(point.y + 40, navbarHeight + popupHeight + 20);
+        positionedBelow = true;
+        
+        // If still not enough space below, try to pan the map
+        if (safeY + 50 > bounds.height) {
+          // Pan map up to make room for popup
+          const targetLat = props.latLng.lat - 0.01; // Move map down slightly
+          props.map.panTo([targetLat, props.latLng.lng], { animate: true, duration: 0.3 });
+          safeY = navbarHeight + popupHeight + 20;
+        }
+      }
       
+      isPositionedBelow.value = positionedBelow;
       position.value = { x: safeX, y: safeY };
     };
     
@@ -101,10 +123,10 @@ export default defineComponent({
       visible.value = false;
       emit('update:modelValue', false);
     };
-    
-    return {
+      return {
       visible,
       position,
+      isPositionedBelow,
       close
     };
   }
@@ -113,12 +135,11 @@ export default defineComponent({
 
 <style scoped>
 .custom-map-popup {
-  position: absolute;
-  z-index: 10000;
+  position: absolute;  z-index: 10000;
   transform: translate(-50%, -100%);
   pointer-events: auto;
-  max-width: 350px;
-  width: 320px;
+  max-width: 420px;
+  width: 384px;
   margin-top: -15px;
 }
 
@@ -130,8 +151,8 @@ export default defineComponent({
 
 .close-btn {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 0px;
+  right: 0px;
   width: 28px;
   height: 28px;
   background: rgba(0,0,0,0.5);
@@ -164,5 +185,18 @@ export default defineComponent({
   transform: translateX(-50%);
   z-index: 999;
   filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+}
+
+/* Estilos para quando o popup está posicionado abaixo do marker */
+.custom-map-popup.popup-below {
+  transform: translate(-50%, 0%);
+  margin-top: 15px;
+}
+
+.custom-map-popup.popup-below .custom-map-popup-arrow {
+  border-top: none;
+  border-bottom: 12px solid #1f2937; /* seta apontando para cima */
+  top: -12px;
+  bottom: auto;
 }
 </style>

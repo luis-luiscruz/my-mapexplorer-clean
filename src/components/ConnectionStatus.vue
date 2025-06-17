@@ -92,13 +92,12 @@
             <span class="text-xs text-base-content/70">Registos:</span>
             <span class="text-xs">{{ formatNumber(status.database.recordCount) }}</span>
           </div>
-          
-          <div v-if="status.database?.version" class="flex items-center justify-between p-2 bg-base-200 rounded">
+            <div v-if="status.database?.version" class="flex items-center justify-between p-2 bg-base-200 rounded">
             <span class="text-xs text-base-content/70">Versão MySQL:</span>
-            <span class="text-xs">{{ status.database.version.split('-')[0] }}</span>
+            <span class="text-xs">{{ status.database.version.toString().split('-')[0] }}</span>
           </div>
           
-          <div v-if="status.database?.responseTime" class="flex items-center justify-between p-2 bg-base-200 rounded">
+          <div v-if="status.database?.responseTime !== undefined && status.database?.responseTime !== null" class="flex items-center justify-between p-2 bg-base-200 rounded">
             <span class="text-xs text-base-content/70">Tempo de resposta:</span>
             <span class="text-xs" :class="getResponseTimeClass(status.database.responseTime)">
               {{ status.database.responseTime }}ms
@@ -223,7 +222,7 @@ const serverInfo = computed(() => {
   if (status.value.database?.host && status.value.database?.port) {
     return `${status.value.database.host}:${status.value.database.port}`;
   }
-  return 'localhost:3001';
+  return 'localhost:3015';
 });
 
 const tooltipText = computed(() => {
@@ -239,12 +238,22 @@ const tooltipText = computed(() => {
 
 // Methods
 const formatTimestamp = (timestamp: string): string => {
-  const date = new Date(timestamp);
-  return date.toLocaleString('pt-PT');
+  try {
+    const date = new Date(timestamp);
+    return date.toLocaleString('pt-PT');
+  } catch (error) {
+    console.error('Error formatting timestamp:', error);
+    return 'Invalid date';
+  }
 };
 
 const formatNumber = (num: number): string => {
-  return new Intl.NumberFormat('pt-PT').format(num);
+  try {
+    return new Intl.NumberFormat('pt-PT').format(num);
+  } catch (error) {
+    console.error('Error formatting number:', error);
+    return num.toString();
+  }
 };
 
 const getResponseTimeClass = (responseTime: number): string => {
@@ -292,9 +301,9 @@ defineExpose({
 <style scoped>
 .connection-indicator {
   position: fixed;
-  top: 20px;
+  top: 70px;  /* Ajustado para ficar abaixo da navbar (navbar tem altura ~48px + margem) */
   right: 20px;
-  z-index: 1000;
+  z-index: 10000;  /* Z-index maior que a navbar (9999) */
 }
 
 .tooltip:before {

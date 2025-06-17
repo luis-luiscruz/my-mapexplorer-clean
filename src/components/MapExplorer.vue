@@ -1,7 +1,4 @@
-<template>
-  <div class="h-screen flex flex-col">
-    <!-- Connection Status Indicator -->
-    <ConnectionStatus />
+<template>  <div class="h-screen flex flex-col">
       <!-- Top Bar -->
     <div class="navbar bg-base-100 shadow-lg border-b border-base-300 z-[9999]">
       <div class="navbar-start"><a class="btn btn-ghost text-xl ml-4">
@@ -497,7 +494,6 @@ import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import 'leaflet.markercluster';
-import ConnectionStatus from './ConnectionStatus.vue';
 import HighwayExitsInfo from './HighwayExitsInfo.vue';
 import UserMenu from './UserMenu.vue';
 import ChargerInfoPopup from './ChargerInfoPopup.vue';
@@ -514,7 +510,6 @@ L.Icon.Default.mergeOptions({
 
 export default defineComponent({
   name: 'MapExplorer',  components: {
-    ConnectionStatus,
     HighwayExitsInfo,
     UserMenu,
     ChargerInfoPopup

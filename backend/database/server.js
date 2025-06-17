@@ -36,24 +36,26 @@ const tableName = process.env.DB_TABLE || 'fast2025_mobie_cross';
 app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
+    if (!origin) return callback(null, true);    
     // Allow any localhost port
     if (origin.match(/^http:\/\/localhost:\d+$/)) {
       return callback(null, true);
     }
-      // Allow specific origins
+    
+    // Allow specific origins
     const allowedOrigins = [
       'http://localhost:3010',
       'http://localhost:5173',
       'http://localhost:5174', 
       'http://localhost:5175',
       'http://localhost:3000',
+      'http://localhost:3015',
       'http://127.0.0.1:3010',
       'http://127.0.0.1:5173',
       'http://127.0.0.1:5174',
       'http://127.0.0.1:5175',
-      'http://127.0.0.1:3000'
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:3015'
     ];
     
     if (allowedOrigins.includes(origin)) {
@@ -307,7 +309,122 @@ app.get('/api/highway-exits/next', async (req, res) => {
     res.json({ next_exits: rows });
   } catch (error) {
     console.error('Error finding next exit:', error);
-    res.status(500).json({ error: 'Failed to find next exit', message: error.message });
+    res.status(500).json({ error: 'Failed to find next exit', message: error.message });  }
+});
+
+// Charger details endpoint - executes Python script for elementos classificados
+app.post('/api/charger-details/:id', async (req, res) => {
+  const { id } = req.params;
+  
+  console.log(`[CHARGER-DETAILS] Received request for charger ID: ${id}`);
+  
+  if (!id) {
+    return res.status(400).json({ 
+      error: 'Missing charger ID',
+      status: 'error' 
+    });
+  }
+  
+  try {
+    const { spawn } = require('child_process');
+    const scriptPath = path.join(__dirname, '..', 'scripts', 'extrair_paineis_tarifario.py');
+    
+    console.log(`[CHARGER-DETAILS] Executing Python script: ${scriptPath}`);
+    console.log(`[CHARGER-DETAILS] Script arguments: ${id}`);
+    
+    // Check if Python script exists
+    if (!fs.existsSync(scriptPath)) {
+      throw new Error(`Python script not found at: ${scriptPath}`);
+    }
+    
+    const startTime = Date.now();
+    
+    const pythonProcess = spawn('python', [scriptPath, id], {
+      cwd: path.join(__dirname, '..', 'scripts'),
+      env: { ...process.env }
+    });
+    
+    let outputData = '';
+    let errorData = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      outputData += data.toString();
+    });
+    
+    pythonProcess.stderr.on('data', (data) => {
+      errorData += data.toString();
+      console.error(`[CHARGER-DETAILS] Python stderr: ${data}`);
+    });
+    
+    pythonProcess.on('close', (code) => {
+      const executionTime = ((Date.now() - startTime) / 1000).toFixed(2);
+      
+      console.log(`[CHARGER-DETAILS] Python process finished with code: ${code}`);
+      console.log(`[CHARGER-DETAILS] Execution time: ${executionTime}s`);
+      
+      if (code === 0) {
+        try {
+          // Try to parse the JSON output
+          const result = JSON.parse(outputData.trim());
+          
+          console.log(`[CHARGER-DETAILS] Successfully parsed JSON result`);
+          console.log(`[CHARGER-DETAILS] Status: ${result.status}`);
+          
+          res.json({
+            ...result,
+            execution_time: executionTime,
+            charger_id: id
+          });
+          
+        } catch (parseError) {
+          console.error(`[CHARGER-DETAILS] JSON parse error:`, parseError);
+          console.error(`[CHARGER-DETAILS] Raw output:`, outputData);
+          
+          res.status(500).json({
+            error: 'Failed to parse Python script output',
+            status: 'error',
+            raw_output: outputData,
+            stderr: errorData,
+            execution_time: executionTime,
+            charger_id: id
+          });
+        }
+      } else {
+        console.error(`[CHARGER-DETAILS] Python script failed with code ${code}`);
+        res.status(500).json({
+          error: `Python script failed with exit code ${code}`,
+          status: 'error',
+          stderr: errorData,
+          raw_output: outputData,
+          execution_time: executionTime,
+          charger_id: id
+        });
+      }
+    });
+    
+    // Set timeout for the request (30 seconds)
+    const timeout = setTimeout(() => {
+      pythonProcess.kill('SIGTERM');
+      res.status(504).json({
+        error: 'Request timeout',
+        status: 'timeout',
+        message: 'Python script execution exceeded 30 seconds',
+        charger_id: id
+      });
+    }, 30000);
+    
+    pythonProcess.on('close', () => {
+      clearTimeout(timeout);
+    });
+    
+  } catch (error) {
+    console.error(`[CHARGER-DETAILS] Error executing Python script:`, error);
+    res.status(500).json({
+      error: 'Failed to execute charger details script',
+      status: 'error',
+      message: error.message,
+      charger_id: id
+    });
   }
 });
 
