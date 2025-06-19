@@ -1,0 +1,15 @@
+version: '3.8'
+services:
+  app:
+    build: .
+    ports:
+      - "3010:3010"
+    environment:
+      - NODE_ENV=production
+      - PORT=3010
+    # Adicione variáveis de ambiente do backend conforme necessário
+    # volumes:
+    #   - ./backend:/app/backend
+    #   - ./src:/app/src
+    #   - ./public:/app/public
+    restart: unless-stopped

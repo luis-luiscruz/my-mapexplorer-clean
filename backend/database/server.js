@@ -27,7 +27,7 @@ const dbConfig = {
 const pool = mysql.createPool(dbConfig);
 
 const app = express();
-const PORT = process.env.PORT || 3015;
+const PORT = process.env.PORT || 3010;
 
 // Database configuration
 const tableName = process.env.DB_TABLE || 'fast2025_mobie_cross';
@@ -82,6 +82,12 @@ app.use(cors({
       return callback(null, true);
     }
     
+    // Allow any *.lci9.com subdomain (wildcard CORS)
+    if (origin && origin.match(/^https?:\/\/[a-zA-Z0-9.-]+\.lci9\.com(:\d+)?$/)) {
+      console.log(`[CORS] Allowing *.lci9.com: ${origin}`);
+      return callback(null, true);
+    }
+    
     // For debugging - log rejected origins
     console.error(`[CORS] REJECTED origin: ${origin}`);
     console.error(`[CORS] Allowed origins:`, allowedOrigins);
@@ -91,6 +97,14 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
+
+// Serve static files from the built frontend
+app.use(express.static(path.join(__dirname, '../public')));
+
+// SPA fallback: serve index.html para qualquer rota não-API
+app.get(/^\/(?!api).*/, (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/index.html'));
+});
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -688,21 +702,6 @@ app.post('/api/run-script', async (req, res) => {
       timestamp: new Date().toISOString(),
       error_type: error.constructor.name
     });
-  }
-});
-
-// Serve static files from the built frontend
-app.use(express.static(path.join(__dirname, '../../dist')));
-
-// API routes should come BEFORE the catch-all
-
-// Serve index.html for any non-API routes (SPA fallback)
-app.get('/', (req, res) => {
-  const indexPath = path.join(__dirname, '../../dist/index.html');
-  if (fs.existsSync(indexPath)) {
-    res.sendFile(indexPath);
-  } else {
-    res.status(404).json({ error: 'Frontend not built. Run "npm run build" first.' });
   }
 });
 

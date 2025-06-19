@@ -151,14 +151,22 @@ def extrair_paineis_tarifario(posto_id):
     
     # Check if running in Docker/Linux environment for headless mode
     if IS_DOCKER or IS_LINUX:
-        #options.add_argument('--headless')
-        options.add_argument('--no-sandbox')
-        options.add_argument('--disable-dev-shm-usage')
-        options.add_argument('--disable-gpu')
-        print("[INFO] Running in Docker/Linux mode - headless Chrome enabled")
+        try:
+            from linux_adapter import get_chrome_driver
+            print("[INFO] Usando get_chrome_driver do linux_adapter para Docker/Linux")
+            driver = get_chrome_driver()
+        except ImportError:
+            print("[ERROR] linux_adapter não encontrado. Tentando fallback para webdriver.Chrome padrão.")
+            options.add_argument('--headless')
+            options.add_argument('--no-sandbox')
+            options.add_argument('--disable-dev-shm-usage')
+            options.add_argument('--disable-gpu')
+            driver = webdriver.Chrome(options=options)
     else:
         options.add_argument('--start-maximized')
         print("[INFO] Running in Windows mode - windowed Chrome enabled")
+        service = Service(ChromeDriverManager().install())
+        driver = webdriver.Chrome(service=service, options=options)
     
     # Common Chrome options for all environments
     options.add_argument('--disable-blink-features=AutomationControlled')
