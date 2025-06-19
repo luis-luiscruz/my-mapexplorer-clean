@@ -75,3 +75,13 @@ temp/
 # Database files (if any)
 *.sqlite
 *.db
+
+# Docker exports and tar files
+*.tar
+*.tar.gz
+*.tar.bz2
+my-mapexplorer-*.tar
+docker-image-*.tar
+
+# Docker build cache
+.dockerignore.tmp
