@@ -546,8 +546,7 @@ app.post('/api/run-script', async (req, res) => {
     }
     
     const startTime = Date.now();
-    console.log(`[RUN-SCRIPT][${requestId}] Script execution started at: ${new Date(startTime).toISOString()}`);
-    
+    console.log(`[RUN-SCRIPT][${requestId}] Script execution started at: ${new Date(startTime).toISOString()}`);    
     // Prepare script arguments
     const args = [scriptPath];
     if (charger_id) args.push(charger_id);
@@ -555,20 +554,29 @@ app.post('/api/run-script', async (req, res) => {
     if (longitude) args.push(longitude.toString());
     if (address) args.push(address);
     
-    console.log(`[RUN-SCRIPT][${requestId}] Python execution details:`);
-    console.log(`[RUN-SCRIPT][${requestId}] - Command: python3`);
-    console.log(`[RUN-SCRIPT][${requestId}] - Arguments:`, args);
-    console.log(`[RUN-SCRIPT][${requestId}] - Working directory: ${path.join(__dirname, '..', 'scripts')}`);
-      // Test Python availability
+    // Test Python availability (try python3 first, then python for Windows)
+    let pythonCommand = 'python3';
     try {
       const pythonVersion = require('child_process').execSync('python3 --version', { encoding: 'utf8' });
       console.log(`[RUN-SCRIPT][${requestId}] Python version check: ${pythonVersion.trim()}`);
     } catch (pythonError) {
-      console.error(`[RUN-SCRIPT][${requestId}] ERROR: Python3 not available:`, pythonError.message);
+      console.log(`[RUN-SCRIPT][${requestId}] Python3 not available, trying 'python'...`);
+      try {
+        const pythonVersion = require('child_process').execSync('python --version', { encoding: 'utf8' });
+        console.log(`[RUN-SCRIPT][${requestId}] Python version check: ${pythonVersion.trim()}`);
+        pythonCommand = 'python';
+      } catch (python2Error) {
+        console.error(`[RUN-SCRIPT][${requestId}] ERROR: Neither python3 nor python available:`, python2Error.message);
+      }
     }
     
+    console.log(`[RUN-SCRIPT][${requestId}] Python execution details:`);
+    console.log(`[RUN-SCRIPT][${requestId}] - Command: ${pythonCommand}`);
+    console.log(`[RUN-SCRIPT][${requestId}] - Arguments:`, args);
+    console.log(`[RUN-SCRIPT][${requestId}] - Working directory: ${path.join(__dirname, '..', 'scripts')}`);
+    
     try {
-      const pythonProcess = spawn('python3', args, {
+      const pythonProcess = spawn(pythonCommand, args, {
         cwd: path.join(__dirname, '..', 'scripts'),
         env: { ...process.env }
       });
