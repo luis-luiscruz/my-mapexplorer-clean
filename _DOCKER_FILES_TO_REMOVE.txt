@@ -1,0 +1,20 @@
+# List of Docker-related files to remove from project root
+.dockerignore
+.dockerignore.backup
+.dockerignore.single
+docker-compose.yml
+Dockerfile
+Dockerfile.alpine
+Dockerfile.distroless
+Dockerfile.final
+Dockerfile.gui
+Dockerfile.minimal
+Dockerfile.optimized
+Dockerfile.slim
+DOCKER_BUILD_INSTRUCTIONS.md
+requirements-alpine.txt
+requirements-minimal.txt
+nginx-single.conf
+nginx.conf
+start-slim.sh
+start.sh

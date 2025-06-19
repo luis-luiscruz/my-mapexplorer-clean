@@ -1,0 +1,2 @@
+# No essential Docker-related files found in backend directory.
+# (If any are found in the future, add them here for removal.)
