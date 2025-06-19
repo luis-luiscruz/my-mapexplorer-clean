@@ -19,7 +19,12 @@ Exemplo: python extrair_paineis_tarifario.py brr-00133
 import sys
 import time
 import json
+import os
 from datetime import datetime
+
+# Check if running in Docker/Linux environment
+IS_DOCKER = os.path.exists('/.dockerenv') or os.environ.get('DOCKER_ENV') == 'true'
+IS_LINUX = sys.platform.startswith('linux')
 
 # Selenium imports
 try:
@@ -31,7 +36,19 @@ try:
     from selenium.webdriver.support.ui import WebDriverWait
     from selenium.webdriver.support import expected_conditions as EC
     from selenium.webdriver.common.action_chains import ActionChains
-    from webdriver_manager.chrome import ChromeDriverManager
+    
+    # Import Linux adapter if in Docker/Linux environment
+    if IS_DOCKER or IS_LINUX:
+        try:
+            from linux_adapter import patch_webdriver_for_linux, get_linux_chrome_options
+            patch_webdriver_for_linux()
+            print("[INFO] Linux adapter loaded for Docker environment")
+        except ImportError:
+            print("[WARNING] Linux adapter not found, using default settings")
+    else:
+        # Windows environment - use ChromeDriverManager
+        from webdriver_manager.chrome import ChromeDriverManager
+    
     SELENIUM_AVAILABLE = True
 except ImportError as e:
     print(f"[WARNING] Selenium não disponível: {e}")
@@ -129,14 +146,22 @@ def extrair_paineis_tarifario(posto_id):
                         pass
         
         print(f"[ERROR] Falha ao desmarcar checkbox '{nome_checkbox}' após {max_tentativas} tentativas")
-        return False
-      # Configurar Chrome com otimizações de velocidade
+        return False      # Configurar Chrome com otimizações de velocidade
     options = Options()
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('--start-maximized')
+    
+    # Check if running in Docker/Linux environment for headless mode
+    if IS_DOCKER or IS_LINUX:
+        #options.add_argument('--headless')
+        options.add_argument('--no-sandbox')
+        options.add_argument('--disable-dev-shm-usage')
+        options.add_argument('--disable-gpu')
+        print("[INFO] Running in Docker/Linux mode - headless Chrome enabled")
+    else:
+        options.add_argument('--start-maximized')
+        print("[INFO] Running in Windows mode - windowed Chrome enabled")
+    
+    # Common Chrome options for all environments
     options.add_argument('--disable-blink-features=AutomationControlled')
-    # Otimizações para velocidade (mantendo visibilidade)
     options.add_argument('--disable-web-security')
     options.add_argument('--disable-features=VizDisplayCompositor')
     options.add_argument('--disable-ipc-flooding-protection')
@@ -146,8 +171,14 @@ def extrair_paineis_tarifario(posto_id):
     try:
         # Inicializar driver
         print("[INFO] Inicializando Chrome...")
-        service = Service(ChromeDriverManager().install())
-        driver = webdriver.Chrome(service=service, options=options)
+        
+        if IS_DOCKER or IS_LINUX:
+            # Linux/Docker environment - use system Chrome
+            driver = webdriver.Chrome(options=options)
+        else:
+            # Windows environment - use ChromeDriverManager
+            service = Service(ChromeDriverManager().install())
+            driver = webdriver.Chrome(service=service, options=options)
           # Navegar para mobie.pt
         print("[INFO] Navegando para mobie.pt...")
         driver.get("https://www.mobie.pt")

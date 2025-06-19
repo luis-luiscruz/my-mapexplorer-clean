@@ -35,15 +35,29 @@ const tableName = process.env.DB_TABLE || 'fast2025_mobie_cross';
 // Middleware
 app.use(cors({
   origin: function (origin, callback) {
+    console.log(`[CORS] Request from origin: ${origin}`);
+    
     // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);    
-    // Allow any localhost port
-    if (origin.match(/^http:\/\/localhost:\d+$/)) {
+    if (!origin) {
+      console.log(`[CORS] Allowing request with no origin`);
       return callback(null, true);
     }
     
-    // Allow specific origins
+    // Allow any localhost port for development
+    if (origin.match(/^http:\/\/localhost:\d+$/)) {
+      console.log(`[CORS] Allowing localhost: ${origin}`);
+      return callback(null, true);
+    }
+    
+    // Allow any 127.0.0.1 port for development  
+    if (origin.match(/^http:\/\/127\.0\.0\.1:\d+$/)) {
+      console.log(`[CORS] Allowing 127.0.0.1: ${origin}`);
+      return callback(null, true);
+    }
+    
+    // Allow specific production domains
     const allowedOrigins = [
+      // Development origins
       'http://localhost:3010',
       'http://localhost:5173',
       'http://localhost:5174', 
@@ -55,18 +69,40 @@ app.use(cors({
       'http://127.0.0.1:5174',
       'http://127.0.0.1:5175',
       'http://127.0.0.1:3000',
-      'http://127.0.0.1:3015'
+      'http://127.0.0.1:3015',
+      // Production origins  
+      'https://app2.lci9.com',
+      'http://app2.lci9.com',
+      'https://lci9.com',
+      'http://lci9.com'
     ];
     
     if (allowedOrigins.includes(origin)) {
+      console.log(`[CORS] Allowing whitelisted origin: ${origin}`);
       return callback(null, true);
     }
+    
+    // For debugging - log rejected origins
+    console.error(`[CORS] REJECTED origin: ${origin}`);
+    console.error(`[CORS] Allowed origins:`, allowedOrigins);
     
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true
 }));
 app.use(express.json());
+
+// Request logging middleware
+app.use((req, res, next) => {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] ${req.method} ${req.url} from ${req.get('origin') || 'unknown origin'}`);
+  console.log(`[${timestamp}] User-Agent: ${req.get('user-agent') || 'unknown'}`);
+  console.log(`[${timestamp}] IP: ${req.ip || req.connection.remoteAddress || 'unknown'}`);
+  if (req.method === 'POST' && req.body) {
+    console.log(`[${timestamp}] Body:`, JSON.stringify(req.body, null, 2));
+  }
+  next();
+});
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -430,37 +466,87 @@ app.post('/api/charger-details/:id', async (req, res) => {
     res.status(500).json({
       error: 'Failed to execute charger details script',
       status: 'error',
-      message: error.message,
-      charger_id: id
-    });  }
-});
-
-// Script execution endpoint
-app.post('/api/run-script', async (req, res) => {
-  const { script, charger_id, latitude, longitude, address } = req.body;
-  
-  console.log(`[RUN-SCRIPT] Received request for script: ${script}`);
-  console.log(`[RUN-SCRIPT] Charger ID: ${charger_id}, Coordinates: ${latitude}, ${longitude}`);
-  
-  if (!script) {
-    return res.status(400).json({ 
-      error: 'Missing script name',
-      status: 'error' 
+      message: error.message,      charger_id: id
     });
   }
-  
+});
+
+// POST endpoint to run Python scripts
+app.post('/api/run-script', async (req, res) => {
+  const requestId = req.headers['x-request-id'] || Math.random().toString(36).substring(2, 10);
   try {
+    console.log(`[RUN-SCRIPT][${requestId}] === NEW SCRIPT REQUEST ===`);
+    console.log(`[RUN-SCRIPT][${requestId}] Request body:`, JSON.stringify(req.body, null, 2));
+    console.log(`[RUN-SCRIPT][${requestId}] Request headers:`, JSON.stringify(req.headers, null, 2));
+    console.log(`[RUN-SCRIPT][${requestId}] User agent:`, req.get('User-Agent'));
+    console.log(`[RUN-SCRIPT][${requestId}] Request IP:`, req.ip || req.connection.remoteAddress);
+    
+    const { script, charger_id, latitude, longitude, address } = req.body;
+    
+    console.log(`[RUN-SCRIPT][${requestId}] Parsed parameters:`);
+    console.log(`[RUN-SCRIPT][${requestId}] - Script: ${script}`);
+    console.log(`[RUN-SCRIPT][${requestId}] - Charger ID: ${charger_id}`);
+    console.log(`[RUN-SCRIPT][${requestId}] - Coordinates: ${latitude}, ${longitude}`);
+    console.log(`[RUN-SCRIPT][${requestId}] - Address: ${address}`);
+    
+    if (!script) {
+      console.error(`[RUN-SCRIPT][${requestId}] ERROR: Missing script name`);
+      return res.status(400).json({ 
+        error: 'Missing script name',
+        status: 'error',
+        request_id: requestId,
+        received_body: req.body
+      });    }
+      console.log(`[RUN-SCRIPT][${requestId}] Environment check:`);
+    console.log(`[RUN-SCRIPT][${requestId}] - Working directory: ${process.cwd()}`);
+    console.log(`[RUN-SCRIPT][${requestId}] - Node version: ${process.version}`);
+    console.log(`[RUN-SCRIPT][${requestId}] - Platform: ${process.platform}`);
+    console.log(`[RUN-SCRIPT][${requestId}] - Architecture: ${process.arch}`);
+    console.log(`[RUN-SCRIPT][${requestId}] - User: ${process.getuid ? process.getuid() : 'N/A'}`);
+    
     const { spawn } = require('child_process');
     const scriptPath = path.join(__dirname, '..', 'scripts', script);
     
-    console.log(`[RUN-SCRIPT] Executing Python script: ${scriptPath}`);
+    console.log(`[RUN-SCRIPT][${requestId}] Script path resolution:`);
+    console.log(`[RUN-SCRIPT][${requestId}] - __dirname: ${__dirname}`);
+    console.log(`[RUN-SCRIPT][${requestId}] - Resolved script path: ${scriptPath}`);
     
     // Check if Python script exists
     if (!fs.existsSync(scriptPath)) {
-      throw new Error(`Python script not found at: ${scriptPath}`);
+      console.error(`[RUN-SCRIPT][${requestId}] ERROR: Script not found at: ${scriptPath}`);
+      // List available scripts for debugging
+      const scriptsDir = path.join(__dirname, '..', 'scripts');
+      console.log(`[RUN-SCRIPT][${requestId}] Scripts directory: ${scriptsDir}`);
+      
+      try {
+        const availableScripts = fs.readdirSync(scriptsDir).filter(file => file.endsWith('.py'));
+        console.log(`[RUN-SCRIPT][${requestId}] Available Python scripts:`, availableScripts);
+        
+        // Also list all files for debugging
+        const allFiles = fs.readdirSync(scriptsDir);
+        console.log(`[RUN-SCRIPT][${requestId}] All files in scripts directory:`, allFiles);
+        
+        throw new Error(`Python script not found: ${script}. Available scripts: ${availableScripts.join(', ')}`);
+      } catch (dirError) {
+        console.error(`[RUN-SCRIPT][${requestId}] ERROR: Cannot read scripts directory:`, dirError);
+        throw new Error(`Cannot access scripts directory: ${scriptsDir}. Error: ${dirError.message}`);
+      }
+    }
+    
+    // Check script permissions and stats
+    try {
+      const stats = fs.statSync(scriptPath);
+      console.log(`[RUN-SCRIPT][${requestId}] Script file stats:`);
+      console.log(`[RUN-SCRIPT][${requestId}] - Size: ${stats.size} bytes`);
+      console.log(`[RUN-SCRIPT][${requestId}] - Mode: ${stats.mode.toString(8)}`);
+      console.log(`[RUN-SCRIPT][${requestId}] - Is file: ${stats.isFile()}`);
+      console.log(`[RUN-SCRIPT][${requestId}] - Modified: ${stats.mtime}`);
+    } catch (statError) {
+      console.error(`[RUN-SCRIPT][${requestId}] ERROR: Cannot get script stats:`, statError);
     }
     
     const startTime = Date.now();
+    console.log(`[RUN-SCRIPT][${requestId}] Script execution started at: ${new Date(startTime).toISOString()}`);
     
     // Prepare script arguments
     const args = [scriptPath];
@@ -469,100 +555,146 @@ app.post('/api/run-script', async (req, res) => {
     if (longitude) args.push(longitude.toString());
     if (address) args.push(address);
     
-    console.log(`[RUN-SCRIPT] Script arguments:`, args);
+    console.log(`[RUN-SCRIPT][${requestId}] Python execution details:`);
+    console.log(`[RUN-SCRIPT][${requestId}] - Command: python3`);
+    console.log(`[RUN-SCRIPT][${requestId}] - Arguments:`, args);
+    console.log(`[RUN-SCRIPT][${requestId}] - Working directory: ${path.join(__dirname, '..', 'scripts')}`);
+      // Test Python availability
+    try {
+      const pythonVersion = require('child_process').execSync('python3 --version', { encoding: 'utf8' });
+      console.log(`[RUN-SCRIPT][${requestId}] Python version check: ${pythonVersion.trim()}`);
+    } catch (pythonError) {
+      console.error(`[RUN-SCRIPT][${requestId}] ERROR: Python3 not available:`, pythonError.message);
+    }
     
-    const pythonProcess = spawn('python', args, {
-      cwd: path.join(__dirname, '..', 'scripts'),
-      env: { ...process.env }
-    });
-    
-    let outputData = '';
-    let errorData = '';
-    
-    pythonProcess.stdout.on('data', (data) => {
-      outputData += data.toString();
-    });
-    
-    pythonProcess.stderr.on('data', (data) => {
-      errorData += data.toString();
-      console.error(`[RUN-SCRIPT] Python stderr: ${data}`);
-    });
-    
-    pythonProcess.on('close', (code) => {
-      const executionTime = Date.now() - startTime;
-      console.log(`[RUN-SCRIPT] Python script finished with code ${code}, execution time: ${executionTime}ms`);
+    try {
+      const pythonProcess = spawn('python3', args, {
+        cwd: path.join(__dirname, '..', 'scripts'),
+        env: { ...process.env }
+      });
       
-      if (code === 0) {
-        try {
-          console.log(`[RUN-SCRIPT] Script output:`, outputData);
-          
-          // Try to parse as JSON
-          let result;
+      let outputData = '';
+      let errorData = '';
+      
+      pythonProcess.stdout.on('data', (data) => {
+        outputData += data.toString();
+      });
+      
+      pythonProcess.stderr.on('data', (data) => {
+        errorData += data.toString();
+        console.error(`[RUN-SCRIPT] Python stderr: ${data}`);
+      });
+      
+      pythonProcess.on('close', (code) => {
+        const executionTime = Date.now() - startTime;
+        console.log(`[RUN-SCRIPT] Python script finished with code ${code}, execution time: ${executionTime}ms`);
+        
+        if (code === 0) {
           try {
-            result = JSON.parse(outputData);
-          } catch {
-            // If not JSON, return as text
-            result = { 
-              output: outputData,
-              type: 'text'
-            };
+            console.log(`[RUN-SCRIPT] Script output:`, outputData);
+            
+            // Try to parse as JSON
+            let result;
+            try {
+              result = JSON.parse(outputData);
+            } catch {
+              // If not JSON, return as text
+              result = { 
+                output: outputData,
+                type: 'text'
+              };
+            }
+            
+            res.json({
+              ...result,
+              execution_time: executionTime,
+              script_name: script,
+              status: 'success'
+            });
+          } catch (parseError) {
+            console.error(`[RUN-SCRIPT] Parse error:`, parseError);
+            res.status(500).json({
+              error: 'Failed to parse script output',
+              status: 'error',
+              raw_output: outputData,
+              stderr: errorData,
+              execution_time: executionTime,
+              script_name: script
+            });
           }
-          
-          res.json({
-            ...result,
-            execution_time: executionTime,
-            script_name: script,
-            status: 'success'
-          });
-          
-        } catch (parseError) {
-          console.error(`[RUN-SCRIPT] Parse error:`, parseError);
-          
+        } else {
+          console.error(`[RUN-SCRIPT] Script failed with code ${code}`);
           res.status(500).json({
-            error: 'Failed to parse script output',
+            error: `Script failed with exit code ${code}`,
             status: 'error',
-            raw_output: outputData,
             stderr: errorData,
+            raw_output: outputData,
             execution_time: executionTime,
             script_name: script
           });
         }
-      } else {
-        console.error(`[RUN-SCRIPT] Script failed with code ${code}`);
-        res.status(500).json({
-          error: `Script failed with exit code ${code}`,
-          status: 'error',
-          stderr: errorData,
-          raw_output: outputData,
-          execution_time: executionTime,
+      });
+      
+      // Set timeout for the request (60 seconds for scripts)
+      const timeout = setTimeout(() => {
+        pythonProcess.kill('SIGTERM');
+        res.status(504).json({
+          error: 'Script execution timeout',
+          status: 'timeout',
+          message: 'Script execution exceeded 60 seconds',
           script_name: script
         });
-      }
-    });
-    
-    // Set timeout for the request (60 seconds for scripts)
-    const timeout = setTimeout(() => {
-      pythonProcess.kill('SIGTERM');
-      res.status(504).json({
-        error: 'Script execution timeout',
-        status: 'timeout',
-        message: 'Script execution exceeded 60 seconds',
-        script_name: script
+      }, 60000);
+      pythonProcess.on('close', () => {
+        clearTimeout(timeout);
       });
-    }, 60000);
-    
-    pythonProcess.on('close', () => {
-      clearTimeout(timeout);
-    });
-    
+    } catch (error) {
+      const requestId = req.requestId || 'unknown';
+      console.error(`[RUN-SCRIPT][${requestId}] === SCRIPT EXECUTION ERROR ===`);
+      console.error(`[RUN-SCRIPT][${requestId}] Error type: ${error.constructor.name}`);
+      console.error(`[RUN-SCRIPT][${requestId}] Error message: ${error.message}`);
+      console.error(`[RUN-SCRIPT][${requestId}] Error stack:`, error.stack);
+      console.error(`[RUN-SCRIPT][${requestId}] Script: ${script || 'undefined'}`);
+      console.error(`[RUN-SCRIPT][${requestId}] Request body:`, JSON.stringify(req.body, null, 2));
+      console.error(`[RUN-SCRIPT][${requestId}] Request headers:`, JSON.stringify(req.headers, null, 2));
+      console.error(`[RUN-SCRIPT][${requestId}] Error occurred at: ${new Date().toISOString()}`);
+      res.status(500).json({
+        error: 'Failed to execute script',
+        status: 'error',
+        message: error.message,
+        script_name: script || 'undefined',
+        request_id: requestId,
+        timestamp: new Date().toISOString(),
+        error_type: error.constructor.name
+      });
+    }
   } catch (error) {
-    console.error(`[RUN-SCRIPT] Error executing script:`, error);
+    // Top-level error handler for the endpoint
+    console.error(`[RUN-SCRIPT][${requestId}] === TOP-LEVEL ERROR ===`);
+    console.error(error);
     res.status(500).json({
-      error: 'Failed to execute script',
+      error: 'Internal server error',
       status: 'error',
       message: error.message,
-      script_name: script
+      request_id: requestId,
+      timestamp: new Date().toISOString(),
+      error_type: error.constructor.name
     });
+  }
+});
+
+// Serve static files from the built frontend
+app.use(express.static(path.join(__dirname, '../../dist')));
+
+// API routes should come BEFORE the catch-all
+
+// Serve index.html for any non-API routes (SPA fallback)
+app.get('/', (req, res) => {
+  const indexPath = path.join(__dirname, '../../dist/index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(404).json({ error: 'Frontend not built. Run "npm run build" first.' });
   }
 });
 
@@ -570,11 +702,6 @@ app.post('/api/run-script', async (req, res) => {
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
   res.status(500).json({ error: 'Internal server error' });
-});
-
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found' });
 });
 
 // Start server

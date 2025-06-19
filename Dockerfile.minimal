@@ -1,0 +1,82 @@
+# Super-minimal Ubuntu-based Docker image for MapExplorer
+# Only includes essential packages for web scraping
+
+# Stage 1: Build Vue.js frontend
+FROM node:18-alpine AS frontend-builder
+WORKDIR /app/frontend
+COPY package*.json postcss.config.js tailwind.config.js vite.config.ts tsconfig*.json ./
+RUN npm ci --silent
+COPY src/ ./src/
+COPY public/ ./public/
+COPY index.html ./
+RUN npm run build
+
+# Stage 2: Install backend dependencies
+FROM node:18-alpine AS backend-deps
+WORKDIR /app/backend
+COPY backend/package*.json ./
+RUN npm ci --only=production --silent
+
+# Stage 3: Minimal runtime image
+FROM ubuntu:22.04
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive \
+    PYTHONUNBUFFERED=1 \
+    NODE_ENV=production \
+    PORT=3010 \
+    PYTHONDONTWRITEBYTECODE=1
+
+# Install essential packages only
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    wget \
+    ca-certificates \
+    gnupg \
+    python3 \
+    python3-pip \
+    python3-venv \
+    # Node.js
+    && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs \
+    # Chrome
+    && wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - \
+    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list \
+    && apt-get update \
+    && apt-get install -y google-chrome-stable \
+    # Cleanup
+    && apt-get autoremove -y \
+    && apt-get autoclean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+WORKDIR /app
+
+# Copy built assets
+COPY --from=frontend-builder /app/frontend/dist ./dist
+COPY --from=backend-deps /app/backend/node_modules ./backend/node_modules
+COPY backend/ ./backend/
+
+# Install minimal Python packages
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+COPY requirements-minimal.txt ./
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements-minimal.txt \
+    && find /opt/venv -name "*.pyc" -delete \
+    && find /opt/venv -name "__pycache__" -type d -exec rm -rf {} + || true
+
+# Copy startup script
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh
+
+# Create non-root user
+RUN useradd -r -s /bin/false mapexplorer \
+    && chown -R mapexplorer:mapexplorer /app
+
+USER mapexplorer
+EXPOSE 3010
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:3010 || exit 1
+
+CMD ["/app/start.sh"]
