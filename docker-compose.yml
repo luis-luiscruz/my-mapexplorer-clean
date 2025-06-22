@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  mapexplorer:
+    build: .
+    container_name: mapexplorer-app
+    ports:
+      - "3010:3010"  # Single port for both frontend and backend
+    volumes:
+      # Mount source code for development
+      - .:/app
+      - /app/node_modules
+      - /app/backend/node_modules
+    environment:
+      - DOCKER_ENV=true
+      - NODE_ENV=production
+      - DISPLAY=:99
+    networks:
+      - mapexplorer-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:3010/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Separate service for running Python selenium scripts
+  selenium-runner:
+    build: .
+    container_name: mapexplorer-selenium
+    volumes:
+      - .:/app
+    environment:
+      - DOCKER_ENV=true
+      - DISPLAY=:99
+    networks:
+      - mapexplorer-network
+    profiles:
+      - selenium
+    command: ["python3", "backend/scripts/extrair_paineis_tarifario.py"]
+
+networks:
+  mapexplorer-network:
+    driver: bridge
+
+# Usage:
+# Build and run the main app:
+#   docker-compose up --build
+#
+# Run just the selenium script:
+#   docker-compose --profile selenium up selenium-runner
+#
+# Run both:
+#   docker-compose --profile selenium up

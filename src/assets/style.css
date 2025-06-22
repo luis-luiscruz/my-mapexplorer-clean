@@ -1,0 +1,153 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles can be added below */
+
+/* MapExplorer Component Styles */
+
+/* Ensure map container takes full space */
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+  z-index: 1 !important; /* Keep map at lower z-index */
+}
+
+/* Force Leaflet controls to lower z-index */
+.leaflet-control-container {
+  z-index: 100 !important;
+}
+
+.leaflet-popup {
+  z-index: 1000 !important;
+}
+
+/* Hide default Leaflet popups to avoid conflicts with custom popup */
+.leaflet-popup-pane {
+  display: none !important;
+}
+
+.leaflet-popup {
+  display: none !important;
+}
+
+/* Ensure our custom popup is always visible */
+.custom-map-popup {
+  display: block !important;
+  z-index: 10000 !important;
+}
+
+/* Custom scrollbar for panels */
+.overflow-y-auto::-webkit-scrollbar {
+  width: 4px;
+}
+
+.overflow-y-auto::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.overflow-y-auto::-webkit-scrollbar-thumb {
+  background: hsl(var(--bc) / 0.2);
+  border-radius: 2px;
+}
+
+.overflow-y-auto::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--bc) / 0.4);
+}
+
+/* Panel animations */
+.panel-enter-active,
+.panel-leave-active {
+  transition: all 0.3s ease-in-out;
+}
+
+.panel-enter-from {
+  transform: translateX(-100%);
+  opacity: 0;
+}
+
+.panel-leave-to {
+  transform: translateX(-100%);
+  opacity: 0;
+}
+
+.panel-right-enter-from {
+  transform: translateX(100%);
+  opacity: 0;
+}
+
+.panel-right-leave-to {
+  transform: translateX(100%);
+  opacity: 0;
+}
+
+/* Floating buttons hover effects */
+.btn-circle:hover {
+  transform: scale(1.1);
+  transition: transform 0.2s ease-in-out;
+}
+
+/* Reset and fix tooltip behavior completely */
+
+/* Remove any potential CSS interference */
+.tooltip {
+  position: relative !important;
+  display: inline-block !important;
+}
+
+/* Ensure tooltips work on hover */
+.tooltip:hover:before,
+.tooltip:hover:after {
+  opacity: 1 !important;
+  visibility: visible !important;
+  z-index: 999999 !important;
+  pointer-events: none !important;
+}
+
+/* Force visibility on hover for data-tip elements */
+[data-tip]:hover:before,
+[data-tip]:hover:after {
+  opacity: 1 !important;
+  visibility: visible !important;
+  z-index: 999999 !important;
+}
+
+/* Base z-index fix for all tooltip pseudo-elements */
+.tooltip:before,
+.tooltip:after,
+[data-tip]:before,
+[data-tip]:after {
+  z-index: 99999 !important;
+}
+
+/* Specific fix for navbar tooltips */
+.navbar .tooltip:hover:before,
+.navbar .tooltip:hover:after {
+  opacity: 1 !important;
+  visibility: visible !important;
+  z-index: 999999 !important;
+}
+
+/* Directional tooltips */
+.tooltip-top:hover:before, .tooltip-top:hover:after,
+.tooltip-bottom:hover:before, .tooltip-bottom:hover:after,
+.tooltip-left:hover:before, .tooltip-left:hover:after,
+.tooltip-right:hover:before, .tooltip-right:hover:after {
+  opacity: 1 !important;
+  visibility: visible !important;
+  z-index: 999999 !important;
+}
+
+/* Custom winter theme metallic effect */
+[data-theme="winter"] .bg-base-100 {
+  background: linear-gradient(135deg, #3A3D47 0%, #2E3139 50%, #3A3D47 100%);
+  box-shadow: inset 0 1px 3px rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="winter"] .border-base-300 {
+  border-color: #4A4D57;
+}
+
+[data-theme="winter"] .shadow-lg {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+}

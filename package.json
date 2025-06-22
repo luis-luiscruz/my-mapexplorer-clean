@@ -1,0 +1,36 @@
+{
+  "name": "my-vite-app",
+  "version": "1.0.0",
+  "private": true,  "scripts": {
+    "dev": "vite --port 3010",
+    "dev:clean": "npm run clear-cache && vite --port 3010 --force",
+    "build": "vite build",
+    "clean": "npm run clear-cache && npm install",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "vite --port 3010",
+    "dev:all": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" --names \"API,WEB\" --prefix-colors \"blue,green\"",
+    "kill-node": "taskkill /F /IM node.exe 2>nul || echo No Node.js processes found",
+    "start-servers": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" --names \"API,WEB\" --prefix-colors \"blue,green\"",
+    "dev:all:clean": "npm run kill-node && npm run clear-cache && npm run start-servers",
+    "start:all": "start cmd /k \"cd backend && npm run dev\" && npm run dev",
+    "start:dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" --names \"Backend:3015,Frontend:3010\" --prefix-colors \"blue,green\""
+  },
+  "dependencies": {
+    "@types/leaflet.markercluster": "^1.5.5",
+    "axios": "^1.9.0",
+    "daisyui": "^4.12.10",
+    "leaflet": "^1.9.4",
+    "leaflet.markercluster": "^1.5.3",
+    "vue": "^3.4.0"
+  },
+  "devDependencies": {
+    "@types/leaflet": "^1.9.8",
+    "@vitejs/plugin-vue": "^5.0.0",
+    "autoprefixer": "^10.4.0",
+    "concurrently": "^9.1.2",
+    "postcss": "^8.4.0",
+    "tailwindcss": "^3.4.0",
+    "typescript": "^5.0.0",
+    "vite": "^5.0.0"
+  }
+}
