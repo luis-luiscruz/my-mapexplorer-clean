@@ -5,6 +5,8 @@
       left: `${position.x}px`,
       top: `${position.y}px`
     }"
+    @mousedown="onDragStart"
+    @touchstart="onTouchStart"
   >      <button @click="close" class="close-btn">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -118,11 +120,125 @@ export default defineComponent({
       visible.value = false;
       emit('update:modelValue', false);
     };
-      return {
+      // --- Draggable logic with touch support ---
+    let dragOffset = { x: 0, y: 0 };
+    let isDragging = false;
+    let dragStartTime = 0;
+    let dragStartPosition = { x: 0, y: 0 };
+
+    const onDragStart = (e: MouseEvent) => {
+      // Check if the click target is a button or interactive element
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'BUTTON' || target.closest('button') || 
+          target.tagName === 'A' || target.closest('a') ||
+          target.tagName === 'INPUT' || target.closest('input')) {
+        return; // Don't start dragging if clicking on interactive elements
+      }
+
+      dragStartTime = Date.now();
+      dragStartPosition = { x: e.clientX, y: e.clientY };
+      
+      isDragging = true;
+      dragOffset = {
+        x: e.clientX - position.value.x,
+        y: e.clientY - position.value.y
+      };
+      document.addEventListener('mousemove', onDrag);
+      document.addEventListener('mouseup', onDragEnd);
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      // Check if the touch target is a button or interactive element
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'BUTTON' || target.closest('button') || 
+          target.tagName === 'A' || target.closest('a') ||
+          target.tagName === 'INPUT' || target.closest('input')) {
+        return; // Don't start dragging if touching interactive elements
+      }
+
+      e.preventDefault(); // Prevent default touch behavior
+      
+      const touch = e.touches[0];
+      dragStartTime = Date.now();
+      dragStartPosition = { x: touch.clientX, y: touch.clientY };
+      
+      isDragging = true;
+      dragOffset = {
+        x: touch.clientX - position.value.x,
+        y: touch.clientY - position.value.y
+      };
+      document.addEventListener('touchmove', onTouchMove, { passive: false });
+      document.addEventListener('touchend', onTouchEnd);
+    };
+
+    const onDrag = (e: MouseEvent) => {
+      if (!isDragging) return;
+      e.preventDefault();
+      position.value = {
+        x: e.clientX - dragOffset.x,
+        y: e.clientY - dragOffset.y
+      };
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!isDragging) return;
+      e.preventDefault();
+      const touch = e.touches[0];
+      position.value = {
+        x: touch.clientX - dragOffset.x,
+        y: touch.clientY - dragOffset.y
+      };
+    };
+
+    const onDragEnd = () => {
+      if (!isDragging) return;
+      
+      // Check if this was a quick tap (not a drag)
+      const dragDuration = Date.now() - dragStartTime;
+      const currentPosition = { x: position.value.x, y: position.value.y };
+      const dragDistance = Math.sqrt(
+        Math.pow(dragStartPosition.x - currentPosition.x, 2) +
+        Math.pow(dragStartPosition.y - currentPosition.y, 2)
+      );
+      
+      // If it was a quick tap with minimal movement, don't consider it a drag
+      if (dragDuration < 200 && dragDistance < 10) {
+        isDragging = false;
+      }
+      
+      document.removeEventListener('mousemove', onDrag);
+      document.removeEventListener('mouseup', onDragEnd);
+      isDragging = false;
+    };
+
+    const onTouchEnd = () => {
+      if (!isDragging) return;
+      
+      // Check if this was a quick tap (not a drag)
+      const dragDuration = Date.now() - dragStartTime;
+      const currentPosition = { x: position.value.x, y: position.value.y };
+      const dragDistance = Math.sqrt(
+        Math.pow(dragStartPosition.x - currentPosition.x, 2) +
+        Math.pow(dragStartPosition.y - currentPosition.y, 2)
+      );
+      
+      // If it was a quick tap with minimal movement, don't consider it a drag
+      if (dragDuration < 200 && dragDistance < 10) {
+        isDragging = false;
+      }
+      
+      document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('touchend', onTouchEnd);
+      isDragging = false;
+    };
+    
+    return {
       visible,
       position,
       isPositionedBelow,
-      close
+      close,
+      onDragStart,
+      onTouchStart
     };
   }
 });
@@ -142,6 +258,24 @@ export default defineComponent({
   overflow: visible;
   padding: 6px;
   border-radius: 8px;
+  /* Improve touch interaction */
+  touch-action: pan-x pan-y;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* Ensure buttons and interactive elements are always clickable */
+.custom-map-popup button,
+.custom-map-popup a,
+.custom-map-popup input,
+.custom-map-popup [role="button"] {
+  pointer-events: auto !important;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
 }
 
 .custom-map-popup .close-btn {
@@ -163,6 +297,9 @@ export default defineComponent({
   backdrop-filter: blur(10px);
   box-shadow: 0 4px 12px rgba(0,0,0,0.5);
   font-weight: bold;
+  /* Ensure close button is always clickable */
+  pointer-events: auto !important;
+  touch-action: manipulation;
 }
 
 .custom-map-popup .close-btn:hover {
@@ -170,6 +307,10 @@ export default defineComponent({
   border-color: white;
   transform: scale(1.15);
   box-shadow: 0 6px 16px rgba(220, 38, 38, 0.4);
+}
+
+.custom-map-popup .close-btn:active {
+  transform: scale(0.95);
 }
 
 .custom-map-popup .custom-map-popup-arrow {
@@ -197,5 +338,21 @@ export default defineComponent({
   border-bottom: 12px solid #1f2937; /* seta apontando para cima */
   top: -12px;
   bottom: auto;
+}
+
+/* Mobile-specific improvements */
+@media (max-width: 768px) {
+  .custom-map-popup {
+    width: calc(100vw - 40px);
+    max-width: 400px;
+    transform: translate(-50%, 0%);
+  }
+  
+  .custom-map-popup .close-btn {
+    width: 36px;
+    height: 36px;
+    top: 6px;
+    right: 6px;
+  }
 }
 </style>

@@ -121,8 +121,10 @@ RUN mkdir -p /var/log/nginx && \
 # Create .dockerenv file to indicate Docker environment
 RUN touch /.dockerenv
 
-# Make scripts executable
-RUN chmod +x scripts/entrypoint.sh
+# Make scripts executable and fix line endings
+RUN chmod +x scripts/entrypoint.sh scripts/start-all-services.sh && \
+    sed -i 's/\r$//' scripts/entrypoint.sh && \
+    sed -i 's/\r$//' scripts/start-all-services.sh
 
 # Create a non-root user for security (but don't switch to it yet)
 RUN useradd -m -s /bin/bash appuser && \
@@ -135,7 +137,7 @@ RUN useradd -m -s /bin/bash appuser && \
 EXPOSE 3010
 
 # Set entrypoint
-ENTRYPOINT ["./scripts/entrypoint.sh"]
+ENTRYPOINT ["/app/scripts/entrypoint.sh"]
 
 # Default command - run both frontend (nginx) and backend services
-CMD ["./scripts/start-all-services.sh"]
+CMD ["/app/scripts/start-all-services.sh"]

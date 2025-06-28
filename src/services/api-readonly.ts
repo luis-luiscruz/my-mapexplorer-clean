@@ -1,6 +1,6 @@
 // API Service for Read-Only Database Connection
 // Using different base URLs for development and production
-const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3015/api' : '/api';
+const BASE_URL = window.location.hostname === 'localhost' ? 'http://localhost:3010/api' : '/api';
 
 export interface ConnectionStatus {
   status: 'connected' | 'disconnected' | 'connecting' | 'error';

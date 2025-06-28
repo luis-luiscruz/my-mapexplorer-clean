@@ -1,16 +1,17 @@
 {
   "name": "my-vite-app",
   "version": "1.0.0",
-  "private": true,  "scripts": {
+  "private": true,
+  "scripts": {
     "dev": "vite --port 3010",
     "dev:clean": "npm run clear-cache && vite --port 3010 --force",
     "build": "vite build",
     "clean": "npm run clear-cache && npm install",
     "dev:backend": "cd backend && npm run dev",
     "dev:frontend": "vite --port 3010",
-    "dev:all": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" --names \"API,WEB\" --prefix-colors \"blue,green\"",
+    "dev:all": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" --names \"Backend:3015,Frontend:3010\" --prefix-colors \"blue,green\"",
     "kill-node": "taskkill /F /IM node.exe 2>nul || echo No Node.js processes found",
-    "start-servers": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" --names \"API,WEB\" --prefix-colors \"blue,green\"",
+    "start-servers": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" --names \"Backend:3015,Frontend:3010\" --prefix-colors \"blue,green\"",
     "dev:all:clean": "npm run kill-node && npm run clear-cache && npm run start-servers",
     "start:all": "start cmd /k \"cd backend && npm run dev\" && npm run dev",
     "start:dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\" --names \"Backend:3015,Frontend:3010\" --prefix-colors \"blue,green\""

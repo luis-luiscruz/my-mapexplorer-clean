@@ -42,4 +42,4 @@ echo "[DOCKER]    - Node.js backend support"
 
 # Execute the command passed to the container
 echo "[DOCKER] 🚀 Executing command: $@"
-exec "$@"
+exec "$@" 

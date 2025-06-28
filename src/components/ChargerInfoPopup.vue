@@ -522,6 +522,16 @@ export default defineComponent({
   flex: 1;
   min-width: 120px;
   text-decoration: none;
+  /* Touch improvements for mobile */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(255, 255, 255, 0.1);
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  /* Ensure buttons are always clickable */
+  pointer-events: auto !important;
 }
 
 .action-btn.maps {
@@ -544,10 +554,28 @@ export default defineComponent({
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
+.action-btn:active:not(:disabled) {
+  transform: translateY(0px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
 .action-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
+}
+
+/* Mobile-specific button improvements */
+@media (max-width: 768px) {
+  .action-btn {
+    padding: 14px 16px;
+    min-height: 48px;
+    font-size: 14px;
+  }
+  
+  .action-section-simple {
+    gap: 8px;
+  }
 }
 
 .btn-icon {

@@ -2,6 +2,26 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Global touch improvements for mobile devices */
+* {
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+  -webkit-touch-callout: none;
+}
+
+/* Ensure all buttons and interactive elements work properly on touch */
+button, a, input, [role="button"], [tabindex] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+}
+
+/* Prevent text selection on interactive elements */
+button, a, input, [role="button"] {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
 /* Custom styles can be added below */
 
 /* MapExplorer Component Styles */

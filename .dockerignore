@@ -13,6 +13,7 @@ coverage
 .nyc_output
 docker-exports
 *.tar
+*.zip
 build-docker-images.ps1
 find-empty-files.ps1
 cleanup-empty.ps1
@@ -20,5 +21,6 @@ CLEANUP_SUMMARY.md
 POSTO_ID_MIGRATION_SUMMARY.md
 PROJECT_INDEX.md
 README.md
+DOCKER_IMAGE_README.md
 # Don't exclude backend for single image build
 # backend

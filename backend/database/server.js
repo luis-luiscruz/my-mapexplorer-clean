@@ -102,7 +102,17 @@ app.use(cors({
   },
   credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ 
+  limit: '2mb', 
+  type: '*/*',
+  verify: (req, res, buf) => {
+    req.rawBody = buf.toString('utf8');
+  }
+}));
+app.use((req, res, next) => {
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  next();
+});
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -381,8 +391,7 @@ app.post('/api/charger-details/:id', async (req, res) => {
     });
   }
   
-  try {
-    const { spawn } = require('child_process');
+  try {    const { spawn } = require('child_process');
     const scriptPath = path.join(__dirname, '..', 'scripts', 'extrair_paineis_tarifario.py');
     
     console.log(`[CHARGER-DETAILS] Executing Python script: ${scriptPath}`);
@@ -393,22 +402,36 @@ app.post('/api/charger-details/:id', async (req, res) => {
       throw new Error(`Python script not found at: ${scriptPath}`);
     }
     
-    const startTime = Date.now();
+    // Choose python command based on platform
+    const isWindows = process.platform === 'win32';
+    const pythonCmd = isWindows ? 'python' : 'python3';
     
-    const pythonProcess = spawn('python', [scriptPath, id], {
+    console.log(`[CHARGER-DETAILS] Platform: ${process.platform}, using Python command: ${pythonCmd}`);
+    
+    const startTime = Date.now();    const pythonProcess = spawn(pythonCmd, [scriptPath, id], {
       cwd: path.join(__dirname, '..', 'scripts'),
-      env: { ...process.env }
+      env: { 
+        ...process.env,
+        PYTHONIOENCODING: 'utf-8',
+        PYTHONUNBUFFERED: '1',
+        LC_ALL: 'en_US.UTF-8',
+        LANG: 'en_US.UTF-8'
+      },
+      encoding: 'utf8'
     });
     
     let outputData = '';
     let errorData = '';
     
+    pythonProcess.stdout.setEncoding('utf8');
+    pythonProcess.stderr.setEncoding('utf8');
+    
     pythonProcess.stdout.on('data', (data) => {
-      outputData += data.toString();
+      outputData += data;
     });
     
     pythonProcess.stderr.on('data', (data) => {
-      errorData += data.toString();
+      errorData += data;
       console.error(`[CHARGER-DETAILS] Python stderr: ${data}`);
     });
     
@@ -417,14 +440,71 @@ app.post('/api/charger-details/:id', async (req, res) => {
       
       console.log(`[CHARGER-DETAILS] Python process finished with code: ${code}`);
       console.log(`[CHARGER-DETAILS] Execution time: ${executionTime}s`);
-      
-      if (code === 0) {
+        if (code === 0) {
         try {
-          // Try to parse the JSON output
-          const result = JSON.parse(outputData.trim());
+          // Extract JSON from script output (same approach as run-script route)
+          let result;
+          try {
+            // Look for JSON at the end of the output (after "[RESULT] RESULTADO FINAL:")
+            const jsonStartMarker = '[RESULT] RESULTADO FINAL:';
+            const jsonStartIndex = outputData.lastIndexOf(jsonStartMarker);
+            
+            if (jsonStartIndex !== -1) {
+              // Extract everything after the marker
+              const jsonString = outputData.substring(jsonStartIndex + jsonStartMarker.length).trim();
+              result = JSON.parse(jsonString);
+              console.log(`[CHARGER-DETAILS] Successfully extracted JSON from script output`);
+            } else {
+              // Fallback: try to parse the entire output as JSON
+              result = JSON.parse(outputData.trim());
+            }
+          } catch (jsonError) {
+            console.log(`[CHARGER-DETAILS] JSON extraction failed, trying alternative methods...`);
+            
+            // Alternative method: look for JSON-like content between braces
+            try {
+              const lines = outputData.split('\n');
+              let jsonLines = [];
+              let insideJson = false;
+              let braceCount = 0;
+              
+              for (const line of lines) {
+                const trimmedLine = line.trim();
+                
+                if (trimmedLine.startsWith('{')) {
+                  insideJson = true;
+                  braceCount = 0;
+                }
+                
+                if (insideJson) {
+                  jsonLines.push(line);
+                  
+                  // Count braces to find the end of JSON
+                  for (const char of trimmedLine) {
+                    if (char === '{') braceCount++;
+                    if (char === '}') braceCount--;
+                  }
+                  
+                  if (braceCount === 0 && trimmedLine.endsWith('}')) {
+                    break;
+                  }
+                }
+              }
+              
+              if (jsonLines.length > 0) {
+                const jsonString = jsonLines.join('\n');
+                result = JSON.parse(jsonString);
+                console.log(`[CHARGER-DETAILS] Successfully extracted JSON using brace counting method`);
+              } else {
+                throw new Error('No JSON found in output');
+              }
+            } catch (alternativeError) {
+              console.log(`[CHARGER-DETAILS] All JSON extraction methods failed`);
+              throw alternativeError;
+            }
+          }
           
           console.log(`[CHARGER-DETAILS] Successfully parsed JSON result`);
-          console.log(`[CHARGER-DETAILS] Status: ${result.status}`);
           
           res.json({
             ...result,
@@ -566,55 +646,121 @@ app.post('/api/run-script', async (req, res) => {
     if (latitude) args.push(latitude.toString());
     if (longitude) args.push(longitude.toString());
     if (address) args.push(address);
-    
+
+    // Choose python command based on platform
+    const isWindows = process.platform === 'win32';
+    const pythonCmd = isWindows ? 'python' : 'python3';
+
     console.log(`[RUN-SCRIPT][${requestId}] Python execution details:`);
-    console.log(`[RUN-SCRIPT][${requestId}] - Command: python3`);
+    console.log(`[RUN-SCRIPT][${requestId}] - Command: ${pythonCmd}`);
     console.log(`[RUN-SCRIPT][${requestId}] - Arguments:`, args);
     console.log(`[RUN-SCRIPT][${requestId}] - Working directory: ${path.join(__dirname, '..', 'scripts')}`);
-      // Test Python availability
+    // Test Python availability
     try {
-      const pythonVersion = require('child_process').execSync('python3 --version', { encoding: 'utf8' });
+      const pythonVersion = require('child_process').execSync(`${pythonCmd} --version`, { encoding: 'utf8' });
       console.log(`[RUN-SCRIPT][${requestId}] Python version check: ${pythonVersion.trim()}`);
     } catch (pythonError) {
-      console.error(`[RUN-SCRIPT][${requestId}] ERROR: Python3 not available:`, pythonError.message);
+      console.error(`[RUN-SCRIPT][${requestId}] ERROR: Python not available:`, pythonError.message);
     }
-    
-    try {
-      const pythonProcess = spawn('python3', args, {
+
+    try {      const pythonProcess = spawn(pythonCmd, args, {
         cwd: path.join(__dirname, '..', 'scripts'),
-        env: { ...process.env }
+        env: { 
+          ...process.env,
+          PYTHONIOENCODING: 'utf-8',
+          PYTHONUNBUFFERED: '1',
+          LC_ALL: 'en_US.UTF-8',
+          LANG: 'en_US.UTF-8'
+        },
+        encoding: 'utf8'
       });
       
       let outputData = '';
       let errorData = '';
       
+      pythonProcess.stdout.setEncoding('utf8');
+      pythonProcess.stderr.setEncoding('utf8');
+      
       pythonProcess.stdout.on('data', (data) => {
-        outputData += data.toString();
+        outputData += data;
       });
       
       pythonProcess.stderr.on('data', (data) => {
-        errorData += data.toString();
+        errorData += data;
         console.error(`[RUN-SCRIPT] Python stderr: ${data}`);
       });
       
       pythonProcess.on('close', (code) => {
         const executionTime = Date.now() - startTime;
         console.log(`[RUN-SCRIPT] Python script finished with code ${code}, execution time: ${executionTime}ms`);
-        
-        if (code === 0) {
+          if (code === 0) {
           try {
             console.log(`[RUN-SCRIPT] Script output:`, outputData);
             
-            // Try to parse as JSON
+            // Extract JSON from script output (same approach as pin popup)
             let result;
             try {
-              result = JSON.parse(outputData);
-            } catch {
-              // If not JSON, return as text
-              result = { 
-                output: outputData,
-                type: 'text'
-              };
+              // Look for JSON at the end of the output (after "[RESULT] RESULTADO FINAL:")
+              const jsonStartMarker = '[RESULT] RESULTADO FINAL:';
+              const jsonStartIndex = outputData.lastIndexOf(jsonStartMarker);
+              
+              if (jsonStartIndex !== -1) {
+                // Extract everything after the marker
+                const jsonString = outputData.substring(jsonStartIndex + jsonStartMarker.length).trim();
+                result = JSON.parse(jsonString);
+                console.log(`[RUN-SCRIPT] Successfully extracted JSON from script output`);
+              } else {
+                // Fallback: try to parse the entire output as JSON
+                result = JSON.parse(outputData);
+              }
+            } catch (jsonError) {
+              console.log(`[RUN-SCRIPT] JSON extraction failed, trying alternative methods...`);
+              
+              // Alternative method: look for JSON-like content between braces
+              try {
+                const lines = outputData.split('\n');
+                let jsonLines = [];
+                let insideJson = false;
+                let braceCount = 0;
+                
+                for (const line of lines) {
+                  const trimmedLine = line.trim();
+                  
+                  if (trimmedLine.startsWith('{')) {
+                    insideJson = true;
+                    braceCount = 0;
+                  }
+                  
+                  if (insideJson) {
+                    jsonLines.push(line);
+                    
+                    // Count braces to find the end of JSON
+                    for (const char of trimmedLine) {
+                      if (char === '{') braceCount++;
+                      if (char === '}') braceCount--;
+                    }
+                    
+                    if (braceCount === 0 && trimmedLine.endsWith('}')) {
+                      break;
+                    }
+                  }
+                }
+                
+                if (jsonLines.length > 0) {
+                  const jsonString = jsonLines.join('\n');
+                  result = JSON.parse(jsonString);
+                  console.log(`[RUN-SCRIPT] Successfully extracted JSON using brace counting method`);
+                } else {
+                  throw new Error('No JSON found in output');
+                }
+              } catch (alternativeError) {
+                console.log(`[RUN-SCRIPT] All JSON extraction methods failed, returning raw output`);
+                // If all JSON extraction fails, return as text
+                result = { 
+                  output: outputData,
+                  type: 'text'
+                };
+              }
             }
             
             res.json({

@@ -22,6 +22,15 @@ import json
 import os
 from datetime import datetime
 
+# Force UTF-8 encoding for all I/O operations on Windows
+if sys.platform.startswith('win'):
+    import codecs
+    # Reconfigure stdout and stderr to use UTF-8
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
+    # Set environment variable to force UTF-8
+    os.environ['PYTHONIOENCODING'] = 'utf-8'
+
 # Check if running in Docker/Linux environment
 IS_DOCKER = os.path.exists('/.dockerenv') or os.environ.get('DOCKER_ENV') == 'true'
 IS_LINUX = sys.platform.startswith('linux')
@@ -53,6 +62,37 @@ except ImportError as e:
     print(f"[WARNING] Selenium não disponível: {e}")
     sys.exit(1)
 
+
+def human_like_delay(min_seconds=0.5, max_seconds=2.0):
+    """Simulate human-like random delays"""
+    import random
+    delay = random.uniform(min_seconds, max_seconds)
+    time.sleep(delay)
+
+def simulate_human_typing(element, text, min_delay=0.05, max_delay=0.15):
+    """Simulate human typing with random delays between keystrokes"""
+    import random
+    element.clear()
+    human_like_delay(0.2, 0.5)  # Pause before typing
+    
+    for char in text:
+        element.send_keys(char)
+        time.sleep(random.uniform(min_delay, max_delay))
+    
+    human_like_delay(0.3, 0.8)  # Pause after typing
+
+def random_mouse_movement(driver):
+    """Simulate random mouse movements to appear more human"""
+    try:
+        action = ActionChains(driver)
+        import random
+        # Move to random coordinates
+        x = random.randint(100, 800)
+        y = random.randint(100, 600)
+        action.move_by_offset(x, y).perform()
+        human_like_delay(0.1, 0.3)
+    except:
+        pass
 
 def extrair_paineis_tarifario(posto_id):
     """
@@ -145,7 +185,7 @@ def extrair_paineis_tarifario(posto_id):
                         pass
         
         print(f"[ERROR] Falha ao desmarcar checkbox '{nome_checkbox}' após {max_tentativas} tentativas")
-        return False      # Configurar Chrome com otimizações de velocidade
+        return False    # Configurar Chrome com anti-detecção avançada
     options = Options()
     
     # Check if running in Docker/Linux environment for headless mode
@@ -159,16 +199,36 @@ def extrair_paineis_tarifario(posto_id):
         options.add_argument('--start-maximized')
         print("[INFO] Running in Windows mode - windowed Chrome enabled")
     
-    # Common Chrome options for all environments
+    # Anti-detection Chrome options
     options.add_argument('--disable-blink-features=AutomationControlled')
-    options.add_argument('--disable-web-security')
-    options.add_argument('--disable-features=VizDisplayCompositor')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--disable-gpu')
+    options.add_argument('--no-first-run')
+    options.add_argument('--no-default-browser-check')
+    options.add_argument('--disable-extensions')
+    options.add_argument('--disable-plugins')
+    options.add_argument('--disable-images')
+    options.add_argument('--disable-javascript')
+    options.add_argument('--disable-notifications')
+    options.add_argument('--disable-popup-blocking')
+    options.add_argument('--disable-translate')
+    options.add_argument('--disable-background-timer-throttling')
+    options.add_argument('--disable-backgrounding-occluded-windows')
+    options.add_argument('--disable-renderer-backgrounding')
+    options.add_argument('--disable-features=TranslateUI')
     options.add_argument('--disable-ipc-flooding-protection')
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_experimental_option('useAutomationExtension', False)
+    options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
     
-    try:
-        # Inicializar driver
+    # Experimental options to hide automation
+    options.add_experimental_option("excludeSwitches", ["enable-automation", "enable-logging"])
+    options.add_experimental_option('useAutomationExtension', False)
+    options.add_experimental_option("prefs", {
+        "profile.default_content_setting_values.notifications": 2,
+        "profile.default_content_settings.popups": 0,
+        "profile.managed_default_content_settings.images": 2
+    })
+    
+    try:        # Inicializar driver com anti-detecção
         print("[INFO] Inicializando Chrome...")
         
         if IS_DOCKER or IS_LINUX:
@@ -178,14 +238,50 @@ def extrair_paineis_tarifario(posto_id):
             # Windows environment - use ChromeDriverManager
             service = Service(ChromeDriverManager().install())
             driver = webdriver.Chrome(service=service, options=options)
-          # Navegar para mobie.pt
+        
+        # Remove navigator.webdriver flag and other automation indicators
+        driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+        driver.execute_cdp_cmd('Network.setUserAgentOverride', {
+            "userAgent": 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        })
+        driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
+            "source": """
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => undefined
+                });
+                Object.defineProperty(navigator, 'plugins', {
+                    get: () => [1, 2, 3, 4, 5]
+                });
+                Object.defineProperty(navigator, 'languages', {
+                    get: () => ['en-US', 'en']
+                });
+                window.chrome = {
+                    runtime: {}
+                };
+                Object.defineProperty(navigator, 'permissions', {
+                    get: () => ({
+                        query: () => Promise.resolve({ state: 'granted' })
+                    })
+                });
+            """
+        })
+        
+        # Random delay before navigation
+        import random
+        time.sleep(random.uniform(1, 3))        # Navegar para mobie.pt com comportamento humano
         print("[INFO] Navegando para mobie.pt...")
         driver.get("https://www.mobie.pt")
+        
+        # Simulate human behavior - random mouse movement
+        random_mouse_movement(driver)
         
         # Aguardar página carregar de forma inteligente
         WebDriverWait(driver, 8).until(
             lambda d: d.execute_script("return document.readyState") == "complete"
         )
+        
+        # Additional human-like delay after page load
+        human_like_delay(2, 4)
         
         # 1. Fechar modais (cookies, popups)
         print("[DEBUG] Verificando e fechando modais...")
@@ -215,8 +311,7 @@ def extrair_paineis_tarifario(posto_id):
         
         # 2. Clicar em "Encontrar posto"
         print("[DEBUG] Clicando em 'Encontrar posto'...")
-        try:
-            # Tentar diferentes métodos para clicar
+        try:            # Tentar diferentes métodos para clicar
             metodos = [
                 # Método 1: Link parcial
                 lambda: driver.find_element(By.PARTIAL_LINK_TEXT, "Encontrar posto").click(),
@@ -232,6 +327,8 @@ def extrair_paineis_tarifario(posto_id):
                 try:
                     metodo()
                     print(f"[SUCCESS] Clicado em 'Encontrar posto' (método {i})")
+                    # Human-like delay after clicking
+                    human_like_delay(1, 2)
                     # Aguardar campo de pesquisa aparecer ao invés de tempo fixo
                     WebDriverWait(driver, 10).until(
                         EC.presence_of_element_located((By.ID, "searchBox"))
@@ -260,9 +357,8 @@ def extrair_paineis_tarifario(posto_id):
                 print(f"[ERROR] {error_msg}")
                 driver.quit()
                 return {"error": error_msg, "status": "checkbox_error"}
-            
-            # Aguardar um momento para garantir que mudanças sejam aplicadas
-            time.sleep(0.5)
+              # Aguardar um momento para garantir que mudanças sejam aplicadas
+            human_like_delay(0.5, 1.0)
             
             # VERIFICAÇÃO FINAL CRÍTICA: Confirmar que checkbox está desmarcada antes de pesquisar
             print("[CRITICAL] Verificação final OBRIGATÓRIA da checkbox antes da pesquisa...")
@@ -272,14 +368,17 @@ def extrair_paineis_tarifario(posto_id):
                 driver.quit()
                 return {"error": error_msg, "status": "final_checkbox_verification_failed"}
             
-            print("[SUCCESS] Checkbox confirmadamente desmarcada - prosseguindo com a pesquisa")            # Limpar, pesquisar e submeter
-            campo_pesquisa.clear()
-            time.sleep(0.3)  # Reduzido de 0.5 para 0.3
-            campo_pesquisa.send_keys(posto_id)
-            time.sleep(0.3)  # Reduzido de 0.5 para 0.3
+            print("[SUCCESS] Checkbox confirmadamente desmarcada - prosseguindo com a pesquisa")            
+            # Simulate human typing instead of instant input
+            simulate_human_typing(campo_pesquisa, posto_id)
+            
+            # Human-like pause before pressing enter
+            human_like_delay(0.5, 1.2)
             campo_pesquisa.send_keys(Keys.RETURN)
             print(f"[SUCCESS] Pesquisa executada para: {posto_id}")
-            time.sleep(5)  # Reduzido de 8 para 5
+            
+            # Human-like delay after search
+            human_like_delay(3, 5)
             
             # Verificar se encontrou resultados
             try:

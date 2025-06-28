@@ -40,7 +40,7 @@
         <!-- Search bar removed -->
       </div>      <div class="navbar-end">
         <!-- User Menu -->
-        <UserMenu />
+        <UserMenu @start-home-monitoring="startHomeMonitoring" />
       </div>
     </div>
       <!-- Main Content Area -->
@@ -426,10 +426,88 @@
         </div>        <!-- Custom Charger Popup Component -->
         <ChargerInfoPopup
           v-if="map"
-          v-model="chargerPopupVisible"
-          :charger="selectedCharger"
+          v-model="chargerPopupVisible"          :charger="selectedCharger"
           :map="map"
         />
+      </div>
+    </div>
+
+    <!-- Home Monitoring Results Panel -->
+    <div v-if="homeMonitoringVisible" class="fixed bottom-0 left-0 right-0 bg-base-100 border-t border-base-300 shadow-lg z-[9999] max-h-96 overflow-y-auto">
+      <div class="p-4">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold flex items-center">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" class="mr-2">
+              <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+            </svg>
+            Home Monitoring Results
+          </h3>
+          <button @click="homeMonitoringVisible = false" class="btn btn-ghost btn-sm btn-circle">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div v-if="homeMonitoringLoading" class="flex items-center justify-center py-8">
+          <div class="loading loading-spinner loading-md mr-3"></div>
+          <span>Analyzing charging stations...</span>
+        </div>
+
+        <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div v-for="result in homeMonitoringResults" :key="result.posto_id" class="card bg-base-200 shadow">
+            <div class="card-body p-4">
+              <div class="flex items-center gap-3 mb-3">
+                <div class="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white text-sm">
+                  ⚡
+                </div>
+                <h4 class="card-title text-base">Posto #{{ result.posto_id }}</h4>
+                <div class="badge" :class="result.error ? 'badge-error' : 'badge-success'">
+                  {{ result.error ? 'Erro' : 'Sucesso' }}
+                </div>
+              </div>
+
+              <div v-if="result.error" class="text-error text-sm">
+                {{ result.error.message || result.error }}
+              </div>
+
+              <div v-else-if="result.data && result.data.elementos_classificados" class="space-y-2">
+                <!-- Display in same format as pin popup -->
+                <div class="bg-base-300 rounded-lg p-3 space-y-2">
+                  <div class="flex justify-between">
+                    <span class="text-sm font-medium text-base-content/70">Conector:</span>
+                    <span class="text-sm font-semibold">{{ result.data.elementos_classificados.conector || 'N/A' }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-sm font-medium text-base-content/70">Potência:</span>
+                    <span class="text-sm font-semibold">{{ result.data.elementos_classificados.potencia || 'N/A' }}</span>
+                  </div>
+                  <div class="flex justify-between">
+                    <span class="text-sm font-medium text-base-content/70">Status:</span>
+                    <span class="text-sm font-semibold badge badge-sm" :class="getStatusBadgeClass(result.data.elementos_classificados.status)">
+                      {{ result.data.elementos_classificados.status || 'N/A' }}
+                    </span>
+                  </div>
+                  <div v-if="result.data.elementos_classificados.precos && result.data.elementos_classificados.precos.length > 0" class="space-y-1">
+                    <span class="text-sm font-medium text-base-content/70">Preços:</span>
+                    <div class="flex flex-wrap gap-1">
+                      <span v-for="preco in result.data.elementos_classificados.precos" :key="preco" class="badge badge-secondary badge-sm">
+                        {{ preco }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div v-else-if="result.data" class="text-xs text-base-content/60">
+                <details>
+                  <summary class="cursor-pointer">Ver dados brutos</summary>
+                  <pre class="mt-2 text-xs overflow-x-auto">{{ JSON.stringify(result.data, null, 2) }}</pre>
+                </details>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -548,6 +626,11 @@ export default defineComponent({
     const chargerPopupVisible = ref(false);
     const selectedCharger = ref<any>(null);
     const mapOffset = ref(0); // Dynamic map offset
+    
+    // Home Monitoring state
+    const homeMonitoringVisible = ref(false);
+    const homeMonitoringLoading = ref(false);
+    const homeMonitoringResults = ref<any[]>([]);
     
     // Weather data
     const weatherData = ref<{
@@ -1317,10 +1400,14 @@ export default defineComponent({
             // Center map on charger
             if (map) {
               map.panTo([lat, lng]);
-            }              // Show custom popup with charger data
-            selectedCharger.value = charger;
-            // mapOffset.value = 50; // Remove map offset - let popup handle its own positioning
-            chargerPopupVisible.value = true;
+            }
+            // Remove previous popup info if any
+            selectedCharger.value = null;
+            chargerPopupVisible.value = false;
+            setTimeout(() => {
+              selectedCharger.value = charger;
+              chargerPopupVisible.value = true;
+            }, 50);
           });
           
           chargerMarkers.value.push(marker);
@@ -1504,13 +1591,95 @@ export default defineComponent({
                  location.includes(searchTerm) || 
                  operator.includes(searchTerm);
         });
-      }
-
-      filteredChargers.value = filtered;
+      }      filteredChargers.value = filtered;
       
       // Update map markers to reflect the filtered chargers
       updateChargerMarkers();
-    };// Lifecycle
+    };
+
+    // Home Monitoring methods
+    const startHomeMonitoring = async () => {
+      homeMonitoringVisible.value = true;
+      homeMonitoringLoading.value = true;
+      homeMonitoringResults.value = [];
+      
+      const postoids = ['brr-00137', 'brr-00133', 'brr-00129'];
+      
+      try {
+        const results = await Promise.all(
+          postoids.map(async (posto_id) => {
+            try {
+              const response = await fetch('/api/run-script', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  script: 'extrair_paineis_tarifario.py',
+                  charger_id: posto_id
+                })
+              });
+              
+              if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+              }
+              
+              const data = await response.json();
+              
+              // Clean and parse the output to extract just the JSON
+              let cleanedData = data;
+              if (data.output && typeof data.output === 'string') {
+                try {
+                  cleanedData = JSON.parse(data.output);
+                } catch {
+                  // If parsing fails, use raw data
+                  cleanedData = { raw_output: data.output };
+                }
+              }
+              
+              // Handle the actual data structure returned by the Python script
+              if (cleanedData.blocos_ccs && Array.isArray(cleanedData.blocos_ccs) && cleanedData.blocos_ccs.length > 0) {
+                const firstBloco = cleanedData.blocos_ccs[0];
+                if (firstBloco.elementos_classificados) {
+                  cleanedData = {
+                    ...cleanedData,
+                    elementos_classificados: firstBloco.elementos_classificados,
+                    total_blocos: cleanedData.total_blocos_ccs || cleanedData.blocos_ccs.length
+                  };
+                }
+              }
+              
+              return { posto_id, data: cleanedData };
+              
+            } catch (err) {
+              console.error(`Error for posto ${posto_id}:`, err);
+              return { posto_id, error: err };
+            }
+          })
+        );
+        
+        homeMonitoringResults.value = results;
+      } catch (err) {
+        console.error('Home monitoring failed:', err);
+        homeMonitoringResults.value = [{ posto_id: 'error', error: 'Failed to execute home monitoring' }];
+      } finally {
+        homeMonitoringLoading.value = false;
+      }
+    };
+
+    const getStatusBadgeClass = (status: string) => {
+      if (!status) return 'badge-ghost';
+      
+      const statusLower = status.toLowerCase();
+      if (statusLower.includes('success') || statusLower.includes('encontrado') || statusLower.includes('disponível')) {
+        return 'badge-success';
+      } else if (statusLower.includes('error') || statusLower.includes('erro')) {
+        return 'badge-error';
+      } else if (statusLower.includes('timeout') || statusLower.includes('tempo')) {
+        return 'badge-warning';
+      }
+      return 'badge-info';
+    };
+
+    // Lifecycle
     onMounted(async () => {
       // Set fixed winter theme
       document.documentElement.setAttribute('data-theme', 'winter');
@@ -1593,10 +1762,15 @@ export default defineComponent({
       getWeatherIcon,
       formatTime,
       getLocationName,
-      updateLocationInfo,
-      // Custom popup state
+      updateLocationInfo,      // Custom popup state
       chargerPopupVisible,
       selectedCharger,
+      // Home Monitoring
+      homeMonitoringVisible,
+      homeMonitoringLoading,
+      homeMonitoringResults,
+      startHomeMonitoring,
+      getStatusBadgeClass,
     };
   },
 });

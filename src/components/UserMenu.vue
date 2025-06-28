@@ -25,6 +25,7 @@
       
       <!-- Menu Items -->
       <li><a><i class="ri-settings-line"></i> Configurações</a></li>
+      <li><a @click="runHomeMonitoring"><i class="ri-home-2-line"></i> Home Monitoring</a></li>
       <li><a><i class="ri-help-line"></i> Ajuda</a></li>
       
       <div class="divider my-1"></div>
@@ -58,6 +59,13 @@ const userInitials = computed(() => {
 
 const handleLogout = () => {
   logout()
+}
+
+// Emit event to parent component (MapExplorer) to handle home monitoring
+const emit = defineEmits(['start-home-monitoring'])
+
+const runHomeMonitoring = async () => {
+  emit('start-home-monitoring')
 }
 </script>
 

@@ -56,10 +56,9 @@ $choice = Read-Host "`nEnter your choice (1-9)"
 switch ($choice) {
     "1" {
         Write-Host "`nStarting full application..." -ForegroundColor Yellow
-        Write-Host "Vue.js will be available at: http://localhost:3000" -ForegroundColor Cyan
-        Write-Host "Python backend will be available at: http://localhost:3010" -ForegroundColor Cyan
+        Write-Host "Application will be available at: http://localhost:3010" -ForegroundColor Cyan
         Write-Host "Press Ctrl+C to stop" -ForegroundColor Gray
-        docker run --rm -p 3000:3000 -p 3010:3010 mapexplorer-complete
+        docker run --rm -p 3010:3010 mapexplorer-complete
     }
     "2" {
         Write-Host "`nRunning Python script with default settings..." -ForegroundColor Yellow
@@ -77,9 +76,9 @@ switch ($choice) {
     }
     "4" {
         Write-Host "`nStarting Vue.js development server..." -ForegroundColor Yellow
-        Write-Host "Application will be available at: http://localhost:3000" -ForegroundColor Cyan
+        Write-Host "Application will be available at: http://localhost:3010" -ForegroundColor Cyan
         Write-Host "Press Ctrl+C to stop" -ForegroundColor Gray
-        docker run --rm -p 3000:3000 mapexplorer-complete npm run dev
+        docker run --rm -p 3010:3010 mapexplorer-complete npm run dev
     }
     "5" {
         Write-Host "`nStarting interactive debugging mode..." -ForegroundColor Yellow
@@ -90,14 +89,13 @@ switch ($choice) {
         Write-Host "  - python3 backend/scripts/extrair_paineis_tarifario.py" -ForegroundColor Gray
         Write-Host "  - google-chrome --version" -ForegroundColor Gray
         Write-Host "  - chromedriver --version" -ForegroundColor Gray
-        docker run --rm -it -p 3000:3000 -p 3010:3010 mapexplorer-complete /bin/bash
+        docker run --rm -it -p 3010:3010 mapexplorer-complete /bin/bash
     }
     "6" {
         if (Test-Path "docker-compose.yml") {
             Write-Host "`nUsing Docker Compose for development..." -ForegroundColor Yellow
             Write-Host "This will start all services with volume mounting for live development" -ForegroundColor Cyan
-            Write-Host "Vue.js: http://localhost:3000" -ForegroundColor Cyan
-            Write-Host "Python backend: http://localhost:3010" -ForegroundColor Cyan
+            Write-Host "Application: http://localhost:3010" -ForegroundColor Cyan
             Write-Host "Press Ctrl+C to stop all services" -ForegroundColor Gray
             docker-compose up --build
         } else {
